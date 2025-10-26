@@ -719,6 +719,7 @@
             return deck;
         }
 
+
         async function createGame() {
             playerName = document.getElementById('playerName').value.trim();
             const numPlayers = parseInt(document.getElementById('numPlayers').value);
@@ -765,7 +766,7 @@
                 if (playerError) throw playerError;
                 
                 playerId = player.id;
-                
+
                 document.getElementById('displayRoomCode').textContent = roomCode;
                 showScreen('waitingScreen');
                 setupRealtimeSubscription();
@@ -821,7 +822,7 @@
                 if (playerError) throw playerError;
                 
                 playerId = player.id;
-                
+
                 document.getElementById('displayRoomCode').textContent = roomCode;
                 showScreen('waitingScreen');
                 setupRealtimeSubscription();
@@ -1246,6 +1247,58 @@
             }
         }
 
+        async function showGameResult() {
+            try {
+                console.log("Game finished detected via realtime!");
+                
+                // Fetch latest game info
+                const { data: gameData, error: gameError } = await supabase
+                    .from('games')
+                    .select('*')
+                    .eq('id', gameId)
+                    .single();
+                
+                if (gameError || !gameData) {
+                    console.error("Failed to fetch game data:", gameError);
+                    return;
+                }
+
+                // Fetch all players in this game
+                const { data: currentPlayers, error: playerError } = await supabase
+                    .from('players')
+                    .select('*')
+                    .eq('game_id', gameId)
+                    .order('player_index');
+                
+                if (playerError || !currentPlayers) {
+                    console.error("Failed to fetch player data:", playerError);
+                    return;
+                }
+
+                // Calculate each player's hand value
+                const playerScores = currentPlayers.map(p => ({
+                    name: p.player_name,
+                    value: calculateHandValue(p.hand),
+                    hand: p.hand
+                }));
+
+                // Find winner by name (stored when game was finished)
+                const winner = playerScores.find(p => p.name === gameData.winner_name);
+
+                if (!winner) {
+                    console.error("Winner not found:", gameData.winner_name);
+                    return;
+                }
+
+                // Display the game over modal to everyone
+                showGameOverModal(winner, playerScores);
+            } 
+            catch (error) {
+                console.error("Error in showGameResult:", error);
+            }
+        }
+
+
         async function callShow() {
             const currentPlayer = allPlayers[gameState.current_player];
             if (currentPlayer.id !== playerId) {
@@ -1282,14 +1335,11 @@
                 
                 await supabase
                     .from('games')
-                    .update({ 
+                    .update({
                         status: 'finished',
                         winner_name: winner.name
                     })
-                    .eq('id', gameId);
-                
-                // Show beautiful game over modal
-                showGameOverModal(winner, playerScores);
+                    .eq('id', gameId);               
                 
             } catch (error) {
                 showMessage('Failed to call SHOW: ' + error.message, 'error');
