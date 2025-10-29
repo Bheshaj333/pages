@@ -504,6 +504,12 @@
         
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // ===== FIXED GAME WORLD SIZE (NORMALIZED COORDINATES) =====
+        const GAME_WORLD = {
+            WIDTH: 1000,
+            HEIGHT: 1000
+        };
+
         // ===== GAME STATE =====
         let currentScreen = 'menu';
         let playerName = '';
@@ -524,24 +530,43 @@
         let isInGame = false;
         let canvasWidth = 0;
         let canvasHeight = 0;
+        let scaleX = 1;
+        let scaleY = 1;
 
-        // ===== ORIGINAL PC VERSION PHYSICS VALUES =====
+        // ===== PHYSICS VALUES (scaled for 1000x1000 world) =====
         const PHYSICS = {
-            GRAVITY: 0.015,
-            RECOIL_FORCE: 8,
-            BULLET_SPEED: 3,
+            GRAVITY: 0.15,
+            RECOIL_FORCE: 80,
+            BULLET_SPEED: 30,
             PLAYER_FRICTION: 0.99,
             ROTATION_DECAY: 0.98,
             ROTATION_RECOIL: 0.08,
             WALL_BOUNCE: 0.6,
-            BULLET_GRAVITY: 0.012,
-            BULLET_FRICTION: 0.998
+            BULLET_GRAVITY: 0.12,
+            BULLET_FRICTION: 0.998,
+            WALL_MARGIN: 30,
+            HIT_RADIUS: 25
         };
 
         const playerColors = [
             '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A',
             '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'
         ];
+
+        // ===== COORDINATE CONVERSION =====
+        function worldToScreen(x, y) {
+            return {
+                x: x * scaleX,
+                y: y * scaleY
+            };
+        }
+
+        function screenToWorld(x, y) {
+            return {
+                x: x / scaleX,
+                y: y / scaleY
+            };
+        }
 
         // ===== REFRESH PREVENTION =====
         window.addEventListener('beforeunload', (e) => {
@@ -644,20 +669,22 @@
             }
         });
 
-        // ===== CANVAS SCALING (FULL SCREEN ADAPTIVE) =====
+        // ===== CANVAS SCALING =====
         function resizeCanvas() {
             if (!canvas) return;
             
-            // Make canvas fill entire viewport
             canvasWidth = window.innerWidth;
             canvasHeight = window.innerHeight;
             
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
             
-            // Update canvas style to ensure it fills screen
             canvas.style.width = canvasWidth + 'px';
             canvas.style.height = canvasHeight + 'px';
+
+            // Calculate scale factors to map world coordinates to screen
+            scaleX = canvasWidth / GAME_WORLD.WIDTH;
+            scaleY = canvasHeight / GAME_WORLD.HEIGHT;
         }
 
         // ===== UI FUNCTIONS =====
@@ -1041,22 +1068,19 @@
             canvas = document.getElementById('gameCanvas');
             ctx = canvas.getContext('2d');
             
-            // Setup full-screen canvas
             resizeCanvas();
-            
-            // Update canvas size on window resize
             window.addEventListener('resize', resizeCanvas);
 
-            // Position players in a circle based on current canvas size
+            // Position players in WORLD coordinates (normalized to 1000x1000)
             let playerArray = Array.from(players.values());
             playerArray.forEach((player, idx) => {
                 const angle = (Math.PI * 2 * idx) / playerArray.length;
-                const distance = Math.min(canvasWidth, canvasHeight) / 4;
+                const distance = 250; // Fixed distance in world coordinates
                 
                 players.set(player.id, {
                     ...player,
-                    x: canvasWidth / 2 + Math.cos(angle) * distance,
-                    y: canvasHeight / 2 + Math.sin(angle) * distance,
+                    x: GAME_WORLD.WIDTH / 2 + Math.cos(angle) * distance,
+                    y: GAME_WORLD.HEIGHT / 2 + Math.sin(angle) * distance,
                     vx: 0,
                     vy: 0,
                     rotation: angle + Math.PI,
@@ -1092,7 +1116,7 @@
             shoot();
         }
 
-        // ===== SHOOTING MECHANICS (ORIGINAL PC VALUES) =====
+        // ===== SHOOTING MECHANICS =====
         function shoot() {
             const now = Date.now();
             if (now - lastShot < 500) return;
@@ -1104,7 +1128,7 @@
             createBullet(player);
             createMuzzleFlash(player);
 
-            // Apply recoil using original PC values
+            // Apply recoil in world coordinates
             player.vx -= Math.cos(player.rotation) * PHYSICS.RECOIL_FORCE;
             player.vy -= Math.sin(player.rotation) * PHYSICS.RECOIL_FORCE;
             player.rotationSpeed += (Math.random() - 0.5) * PHYSICS.ROTATION_RECOIL;
@@ -1143,8 +1167,8 @@
                 particles.push({
                     x: player.x + Math.cos(player.rotation) * 35,
                     y: player.y + Math.sin(player.rotation) * 35,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
+                    vx: Math.cos(angle) * speed * 10,
+                    vy: Math.sin(angle) * speed * 10,
                     life: 30,
                     maxLife: 30,
                     color: player.color,
@@ -1225,7 +1249,7 @@
             });
         }
 
-        // ===== GAME LOOP (ORIGINAL PC PHYSICS WITH DYNAMIC CANVAS) =====
+        // ===== GAME LOOP =====
         let lastPositionBroadcast = 0;
         
         function gameLoop() {
@@ -1239,8 +1263,8 @@
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-            // Draw stars (scaled to canvas size)
-            const starCount = Math.floor((canvasWidth * canvasHeight) / 15000);
+            // Draw stars
+            const starCount = 200;
             for (let i = 0; i < starCount; i++) {
                 const x = (i * 123) % canvasWidth;
                 const y = (i * 456) % canvasHeight;
@@ -1255,51 +1279,42 @@
                 botAI();
             }
 
-            // Update players using ORIGINAL PC PHYSICS
+            // Update players in WORLD coordinates
             players.forEach(player => {
                 if (!player.isAlive) return;
 
-                // Apply gravity
+                // Apply physics in world coordinates
                 player.vy += PHYSICS.GRAVITY;
-                
-                // Apply rotation
                 player.rotation += player.rotationSpeed;
                 player.rotationSpeed *= PHYSICS.ROTATION_DECAY;
-                
-                // Update position
                 player.x += player.vx;
                 player.y += player.vy;
-                
-                // Apply friction
                 player.vx *= PHYSICS.PLAYER_FRICTION;
                 player.vy *= PHYSICS.PLAYER_FRICTION;
 
-                // Wall collision with DYNAMIC canvas boundaries
-                // Scale margin based on canvas size (3% of shortest dimension)
-                const margin = Math.min(canvasWidth, canvasHeight) * 0.03;
-                
-                if (player.x < margin) {
-                    player.x = margin;
+                // Wall collision in WORLD coordinates (fixed boundaries for all players)
+                if (player.x < PHYSICS.WALL_MARGIN) {
+                    player.x = PHYSICS.WALL_MARGIN;
                     player.vx = Math.abs(player.vx) * PHYSICS.WALL_BOUNCE;
                     player.rotationSpeed += (Math.random() - 0.5) * 0.1;
                 }
-                if (player.x > canvasWidth - margin) {
-                    player.x = canvasWidth - margin;
+                if (player.x > GAME_WORLD.WIDTH - PHYSICS.WALL_MARGIN) {
+                    player.x = GAME_WORLD.WIDTH - PHYSICS.WALL_MARGIN;
                     player.vx = -Math.abs(player.vx) * PHYSICS.WALL_BOUNCE;
                     player.rotationSpeed += (Math.random() - 0.5) * 0.1;
                 }
-                if (player.y < margin) {
-                    player.y = margin;
+                if (player.y < PHYSICS.WALL_MARGIN) {
+                    player.y = PHYSICS.WALL_MARGIN;
                     player.vy = Math.abs(player.vy) * PHYSICS.WALL_BOUNCE;
                     player.rotationSpeed += (Math.random() - 0.5) * 0.1;
                 }
-                if (player.y > canvasHeight - margin) {
-                    player.y = canvasHeight - margin;
+                if (player.y > GAME_WORLD.HEIGHT - PHYSICS.WALL_MARGIN) {
+                    player.y = GAME_WORLD.HEIGHT - PHYSICS.WALL_MARGIN;
                     player.vy = -Math.abs(player.vy) * PHYSICS.WALL_BOUNCE;
                     player.rotationSpeed += (Math.random() - 0.5) * 0.1;
                 }
 
-                // Broadcast position for my player
+                // Broadcast position for multiplayer
                 if (player.id === myPlayerId && !isOfflineMode && gameChannel) {
                     const now = Date.now();
                     if (now - lastPositionBroadcast > 50) {
@@ -1320,9 +1335,12 @@
                     }
                 }
 
+                // Convert to screen coordinates for drawing
+                const screenPos = worldToScreen(player.x, player.y);
+
                 // Draw shadow
                 ctx.save();
-                ctx.translate(player.x, player.y);
+                ctx.translate(screenPos.x, screenPos.y);
                 ctx.rotate(player.rotation);
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
                 ctx.fillRect(-8, -7, 40, 16);
@@ -1330,7 +1348,7 @@
 
                 // Draw gun
                 ctx.save();
-                ctx.translate(player.x, player.y);
+                ctx.translate(screenPos.x, screenPos.y);
                 ctx.rotate(player.rotation);
                 ctx.fillStyle = player.color;
                 ctx.fillRect(-12, -6, 38, 12);
@@ -1342,11 +1360,11 @@
                 ctx.restore();
 
                 // Draw glow
-                const glowGradient = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, 50);
+                const glowGradient = ctx.createRadialGradient(screenPos.x, screenPos.y, 0, screenPos.x, screenPos.y, 50);
                 glowGradient.addColorStop(0, player.color + '60');
                 glowGradient.addColorStop(1, 'transparent');
                 ctx.fillStyle = glowGradient;
-                ctx.fillRect(player.x - 50, player.y - 50, 100, 100);
+                ctx.fillRect(screenPos.x - 50, screenPos.y - 50, 100, 100);
 
                 // Draw health bar
                 const healthBarWidth = 50;
@@ -1354,10 +1372,10 @@
                 const healthPercent = player.health / 100;
                 
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(player.x - healthBarWidth / 2, player.y - 40, healthBarWidth, healthBarHeight);
+                ctx.fillRect(screenPos.x - healthBarWidth / 2, screenPos.y - 40, healthBarWidth, healthBarHeight);
                 
                 ctx.fillStyle = healthPercent > 0.5 ? '#4ade80' : healthPercent > 0.25 ? '#fbbf24' : '#ef4444';
-                ctx.fillRect(player.x - healthBarWidth / 2, player.y - 40, healthBarWidth * healthPercent, healthBarHeight);
+                ctx.fillRect(screenPos.x - healthBarWidth / 2, screenPos.y - 40, healthBarWidth * healthPercent, healthBarHeight);
 
                 // Draw name
                 ctx.fillStyle = '#fff';
@@ -1365,22 +1383,25 @@
                 ctx.textAlign = 'center';
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                 ctx.shadowBlur = 4;
-                ctx.fillText(player.player_name, player.x, player.y - 48);
+                ctx.fillText(player.player_name, screenPos.x, screenPos.y - 48);
                 ctx.shadowBlur = 0;
             });
 
-            // Update bullets using ORIGINAL PC PHYSICS
+            // Update bullets in WORLD coordinates
             bullets = bullets.filter(bullet => {
                 bullet.trail.push({ x: bullet.x, y: bullet.y });
                 if (bullet.trail.length > 10) bullet.trail.shift();
 
-                // Apply bullet physics
+                // Apply bullet physics in world space
                 bullet.vy += PHYSICS.BULLET_GRAVITY;
                 bullet.x += bullet.vx;
                 bullet.y += bullet.vy;
                 bullet.life--;
                 bullet.vx *= PHYSICS.BULLET_FRICTION;
                 bullet.vy *= PHYSICS.BULLET_FRICTION;
+
+                // Convert to screen for drawing
+                const screenPos = worldToScreen(bullet.x, bullet.y);
 
                 // Draw trail
                 ctx.strokeStyle = bullet.color;
@@ -1389,9 +1410,11 @@
                 bullet.trail.forEach((pos, idx) => {
                     ctx.globalAlpha = (idx / bullet.trail.length) * 0.7;
                     if (idx > 0) {
+                        const prev = worldToScreen(bullet.trail[idx - 1].x, bullet.trail[idx - 1].y);
+                        const curr = worldToScreen(pos.x, pos.y);
                         ctx.beginPath();
-                        ctx.moveTo(bullet.trail[idx - 1].x, bullet.trail[idx - 1].y);
-                        ctx.lineTo(pos.x, pos.y);
+                        ctx.moveTo(prev.x, prev.y);
+                        ctx.lineTo(curr.x, curr.y);
                         ctx.stroke();
                     }
                 });
@@ -1402,22 +1425,21 @@
                 ctx.shadowColor = bullet.color;
                 ctx.shadowBlur = 15;
                 ctx.beginPath();
-                ctx.arc(bullet.x, bullet.y, 5, 0, Math.PI * 2);
+                ctx.arc(screenPos.x, screenPos.y, 5, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.shadowBlur = 0;
 
                 // Glow
-                const bulletGlow = ctx.createRadialGradient(bullet.x, bullet.y, 0, bullet.x, bullet.y, 15);
+                const bulletGlow = ctx.createRadialGradient(screenPos.x, screenPos.y, 0, screenPos.x, screenPos.y, 15);
                 bulletGlow.addColorStop(0, bullet.color + 'AA');
                 bulletGlow.addColorStop(1, 'transparent');
                 ctx.fillStyle = bulletGlow;
                 ctx.beginPath();
-                ctx.arc(bullet.x, bullet.y, 15, 0, Math.PI * 2);
+                ctx.arc(screenPos.x, screenPos.y, 15, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Collision detection (scale hitbox with canvas size)
+                // Collision detection in WORLD coordinates (same for all players)
                 let hitSomeone = false;
-                const hitRadius = Math.min(canvasWidth, canvasHeight) * 0.025; // 2.5% of shortest dimension
                 players.forEach(player => {
                     if (!player.isAlive || player.id === bullet.ownerId) return;
                     
@@ -1425,7 +1447,7 @@
                     const dy = bullet.y - player.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     
-                    if (dist < hitRadius) {
+                    if (dist < PHYSICS.HIT_RADIUS) {
                         player.health -= 34;
                         hitSomeone = true;
                         
@@ -1434,8 +1456,8 @@
                             particles.push({
                                 x: bullet.x,
                                 y: bullet.y,
-                                vx: (Math.random() - 0.5) * 6,
-                                vy: (Math.random() - 0.5) * 6,
+                                vx: (Math.random() - 0.5) * 60,
+                                vy: (Math.random() - 0.5) * 60,
                                 life: 40,
                                 maxLife: 40,
                                 color: player.color,
@@ -1453,8 +1475,8 @@
                                 particles.push({
                                     x: player.x,
                                     y: player.y,
-                                    vx: (Math.random() - 0.5) * 8,
-                                    vy: (Math.random() - 0.5) * 8,
+                                    vx: (Math.random() - 0.5) * 80,
+                                    vy: (Math.random() - 0.5) * 80,
                                     life: 80,
                                     maxLife: 80,
                                     color: player.color,
@@ -1485,13 +1507,13 @@
 
                 if (hitSomeone) return false;
 
-                // Remove bullets outside DYNAMIC canvas boundaries
-                return bullet.x > -100 && bullet.x < canvasWidth + 100 && 
-                       bullet.y > -100 && bullet.y < canvasHeight + 100 && 
+                // Remove bullets outside WORLD boundaries (same for all players)
+                return bullet.x > -100 && bullet.x < GAME_WORLD.WIDTH + 100 && 
+                       bullet.y > -100 && bullet.y < GAME_WORLD.HEIGHT + 100 && 
                        bullet.life > 0;
             });
 
-            // Update particles
+            // Update particles in WORLD coordinates
             particles = particles.filter(particle => {
                 particle.vy += PHYSICS.BULLET_GRAVITY;
                 particle.x += particle.vx;
@@ -1500,11 +1522,12 @@
                 particle.vx *= PHYSICS.PLAYER_FRICTION;
                 particle.vy *= PHYSICS.PLAYER_FRICTION;
 
+                const screenPos = worldToScreen(particle.x, particle.y);
                 const alpha = particle.life / particle.maxLife;
                 const alphaHex = Math.floor(alpha * 255).toString(16).padStart(2, '0');
                 ctx.fillStyle = particle.color + alphaHex;
                 ctx.beginPath();
-                ctx.arc(particle.x, particle.y, particle.size || 2, 0, Math.PI * 2);
+                ctx.arc(screenPos.x, screenPos.y, particle.size || 2, 0, Math.PI * 2);
                 ctx.fill();
 
                 return particle.life > 0;
