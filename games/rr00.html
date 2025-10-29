@@ -535,14 +535,14 @@
 
         // ===== PHYSICS VALUES (scaled for 1000x1000 world) =====
         const PHYSICS = {
-            GRAVITY: 0.15,
-            RECOIL_FORCE: 80,
-            BULLET_SPEED: 30,
+            GRAVITY: 0.015,
+            RECOIL_FORCE: 8,
+            BULLET_SPEED: 3,
             PLAYER_FRICTION: 0.99,
             ROTATION_DECAY: 0.98,
             ROTATION_RECOIL: 0.08,
             WALL_BOUNCE: 0.6,
-            BULLET_GRAVITY: 0.12,
+            BULLET_GRAVITY: 0.012,
             BULLET_FRICTION: 0.998,
             WALL_MARGIN: 30,
             HIT_RADIUS: 25
@@ -1161,20 +1161,8 @@
         }
 
         function createMuzzleFlash(player) {
-            for (let i = 0; i < 12; i++) {
-                const angle = player.rotation + (Math.random() - 0.5) * 0.8;
-                const speed = Math.random() * 3 + 1.5;
-                particles.push({
-                    x: player.x + Math.cos(player.rotation) * 35,
-                    y: player.y + Math.sin(player.rotation) * 35,
-                    vx: Math.cos(angle) * speed * 10,
-                    vy: Math.sin(angle) * speed * 10,
-                    life: 30,
-                    maxLife: 30,
-                    color: player.color,
-                    size: Math.random() * 3 + 2
-                });
-            }
+            // Don't create muzzle flash particles - they were causing the "burst" visual bug
+            // The main bullet is enough visual feedback
         }
 
         // ===== MULTIPLAYER HANDLERS =====
@@ -1451,13 +1439,13 @@
                         player.health -= 34;
                         hitSomeone = true;
                         
-                        // Hit particles
-                        for (let i = 0; i < 20; i++) {
+                        // Hit particles - reduced amount
+                        for (let i = 0; i < 8; i++) {
                             particles.push({
                                 x: bullet.x,
                                 y: bullet.y,
-                                vx: (Math.random() - 0.5) * 60,
-                                vy: (Math.random() - 0.5) * 60,
+                                vx: (Math.random() - 0.5) * 6,
+                                vy: (Math.random() - 0.5) * 6,
                                 life: 40,
                                 maxLife: 40,
                                 color: player.color,
@@ -1470,13 +1458,13 @@
                             const shooter = players.get(bullet.ownerId);
                             if (shooter) shooter.kills = (shooter.kills || 0) + 1;
                             
-                            // Death explosion
-                            for (let i = 0; i < 50; i++) {
+                            // Death explosion - reduced particles
+                            for (let i = 0; i < 30; i++) {
                                 particles.push({
                                     x: player.x,
                                     y: player.y,
-                                    vx: (Math.random() - 0.5) * 80,
-                                    vy: (Math.random() - 0.5) * 80,
+                                    vx: (Math.random() - 0.5) * 8,
+                                    vy: (Math.random() - 0.5) * 8,
                                     life: 80,
                                     maxLife: 80,
                                     color: player.color,
