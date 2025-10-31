@@ -483,6 +483,19 @@
                 <button onclick="backToMenu()">Back to Menu</button>
             </div>
         </div>
+
+        <div id="eliminatedScreen" class="screen">
+            <div class="menu-container winner-screen">
+                <h1 style="color: #e74c3c;">💀 ELIMINATED 💀</h1>
+                <h2 id="eliminatedBy"></h2>
+                <div class="stats-box">
+                    <p>🎯 Your Eliminations: <span id="yourKills">0</span></p>
+                    <p>📊 Final Placement: <span id="finalPlacement"></span></p>
+                    <p style="color: #a0d8f1;">Better luck next time!</p>
+                </div>
+                <button onclick="backToMenu()">Back to Menu</button>
+            </div>
+        </div>
     </div>
 
     <div class="modal" id="confirmLeaveModal">
@@ -540,6 +553,15 @@
         let isOfflineMode = false;
         let scale = 1; // Canvas scaling factor
         let isInGame = false; // Track if user is in active game
+        let isWindowFocused = true;
+        let lastFrameTime = 0;
+        let gameEnded = false;
+        let frameCount = 0;
+        let lastFpsCheck = 0;
+        let currentFps = 60;
+        let devicePerformance = 'high'; // high, medium, low
+        let pendingDbUpdates = new Map();
+        let lastDbUpdate = 0;
 
         const playerColors = [
             '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A',
@@ -647,6 +669,25 @@
             }
         });
 
+        // ===== WINDOW FOCUS HANDLING =====
+        window.addEventListener('focus', () => {
+            isWindowFocused = true;
+            lastFrameTime = performance.now();
+        });
+
+        window.addEventListener('blur', () => {
+            isWindowFocused = false;
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                isWindowFocused = true;
+                lastFrameTime = performance.now();
+            } else {
+                isWindowFocused = false;
+            }
+        });
+
         // ===== CANVAS SCALING (MAINTAINS FIXED GAME WORLD) =====
         function setupCanvasScaling() {
             const container = window;
@@ -732,6 +773,7 @@
             isHost = false;
             isOfflineMode = false;
             myPlayerId = null;
+            gameEnded = false;
             
             clearSession();
             switchScreen('menu');
@@ -905,6 +947,7 @@
                 .channel('game-' + roomId)
                 .on('broadcast', { event: 'shoot' }, handleRemoteShoot)
                 .on('broadcast', { event: 'move' }, handleRemoteMove)
+                .on('broadcast', { event: 'player_death' }, handleRemotePlayerDeath)
                 .subscribe();
         }
 
@@ -946,7 +989,16 @@
                         vy: 0,
                         rotation: 0,
                         rotationSpeed: 0,
-                        lastBotShot: 0
+                        lastBotShot: 0,
+                        // Interpolation properties
+                        targetX: 0,
+                        targetY: 0,
+                        targetRotation: 0,
+                        targetVx: 0,
+                        targetVy: 0,
+                        targetRotationSpeed: 0,
+                        lastUpdateTime: 0,
+                        hasReceivedUpdate: false
                     });
                 });
             }
@@ -1026,7 +1078,16 @@
                 id: myPlayerId,
                 player_name: playerName,
                 color: playerColors[0],
-                isBot: false
+                isBot: false,
+                // Interpolation properties
+                targetX: 0,
+                targetY: 0,
+                targetRotation: 0,
+                targetVx: 0,
+                targetVy: 0,
+                targetRotationSpeed: 0,
+                lastUpdateTime: 0,
+                hasReceivedUpdate: true // Local player doesn't need interpolation
             });
 
             for (let i = 0; i < numBots; i++) {
@@ -1035,7 +1096,16 @@
                     id: botId,
                     player_name: botNames[i % botNames.length] + (Math.floor(i / botNames.length) + 1),
                     color: playerColors[(i + 1) % playerColors.length],
-                    isBot: true
+                    isBot: true,
+                    // Interpolation properties (bots don't need it in offline mode)
+                    targetX: 0,
+                    targetY: 0,
+                    targetRotation: 0,
+                    targetVx: 0,
+                    targetVy: 0,
+                    targetRotationSpeed: 0,
+                    lastUpdateTime: 0,
+                    hasReceivedUpdate: true
                 });
             }
 
@@ -1083,19 +1153,23 @@
 
         // ===== INPUT HANDLERS =====
         function handleKeyDown(e) {
-            if (e.code === 'Space') {
+            if (e.code === 'Space' && isWindowFocused) {
                 e.preventDefault();
                 shoot();
             }
         }
 
         function handleCanvasClick(e) {
-            shoot();
+            if (isWindowFocused) {
+                shoot();
+            }
         }
 
         function handleTouchStart(e) {
             e.preventDefault();
-            shoot();
+            if (isWindowFocused) {
+                shoot();
+            }
         }
 
         // ===== SHOOTING MECHANICS (ORIGINAL PC VALUES) =====
@@ -1159,16 +1233,15 @@
             }
         }
 
-        // ===== MULTIPLAYER HANDLERS =====
+        // ===== MULTIPLAYER HANDLERS WITH INTERPOLATION =====
         function handleRemoteShoot(payload) {
             if (payload.payload.playerId === myPlayerId) return;
             
             const player = players.get(payload.payload.playerId);
             if (!player) return;
 
-            player.x = payload.payload.x;
-            player.y = payload.payload.y;
-            player.rotation = payload.payload.rotation;
+            // Smoothly update position for shooting
+            updateRemotePlayerPosition(player, payload.payload);
             
             createBullet(player);
             createMuzzleFlash(player);
@@ -1179,13 +1252,92 @@
             
             const player = players.get(payload.payload.playerId);
             if (player && player.isAlive) {
-                player.x = payload.payload.x;
-                player.y = payload.payload.y;
-                player.rotation = payload.payload.rotation;
-                player.vx = payload.payload.vx || 0;
-                player.vy = payload.payload.vy || 0;
-                player.rotationSpeed = payload.payload.rotationSpeed || 0;
+                updateRemotePlayerPosition(player, payload.payload);
             }
+        }
+
+        function updateRemotePlayerPosition(player, data) {
+            const now = Date.now();
+            
+            // Store target position for interpolation
+            player.targetX = data.x;
+            player.targetY = data.y;
+            player.targetRotation = data.rotation;
+            player.targetVx = data.vx || 0;
+            player.targetVy = data.vy || 0;
+            player.targetRotationSpeed = data.rotationSpeed || 0;
+            player.lastUpdateTime = now;
+            
+            // Performance-based position setting
+            if (!player.hasReceivedUpdate || devicePerformance === 'low') {
+                // For first update or low-performance devices, set position more directly
+                const directFactor = devicePerformance === 'low' ? 0.7 : 1.0;
+                
+                player.x = player.x + (data.x - player.x) * directFactor;
+                player.y = player.y + (data.y - player.y) * directFactor;
+                player.rotation = data.rotation;
+                player.vx = data.vx || 0;
+                player.vy = data.vy || 0;
+                player.rotationSpeed = data.rotationSpeed || 0;
+                player.hasReceivedUpdate = true;
+            }
+        }
+
+        function interpolateRemotePlayers() {
+            const now = Date.now();
+            
+            players.forEach(player => {
+                if (player.id === myPlayerId || !player.isAlive || !player.hasReceivedUpdate) return;
+                
+                const timeSinceUpdate = now - (player.lastUpdateTime || 0);
+                
+                if (player.targetX !== undefined) {
+                    // Adaptive smoothing based on update frequency and distance
+                    const distance = Math.sqrt(
+                        Math.pow(player.targetX - player.x, 2) + 
+                        Math.pow(player.targetY - player.y, 2)
+                    );
+                    
+                    // Adjust smoothing based on distance and time
+                    let smoothFactor = 0.2; // Base smoothing
+                    
+                    if (distance > 50) {
+                        smoothFactor = 0.4; // Faster catch-up for large distances
+                    } else if (distance < 10) {
+                        smoothFactor = 0.1; // Slower for small movements
+                    }
+                    
+                    // Increase smoothing for older updates
+                    if (timeSinceUpdate > 100) {
+                        smoothFactor = Math.min(smoothFactor * 1.5, 0.6);
+                    }
+                    
+                    // Interpolate position with adaptive smoothing
+                    player.x += (player.targetX - player.x) * smoothFactor;
+                    player.y += (player.targetY - player.y) * smoothFactor;
+                    
+                    // Interpolate rotation (handle wrapping)
+                    let rotDiff = player.targetRotation - player.rotation;
+                    while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+                    while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+                    player.rotation += rotDiff * smoothFactor;
+                    
+                    // Interpolate velocity
+                    player.vx += (player.targetVx - player.vx) * smoothFactor;
+                    player.vy += (player.targetVy - player.vy) * smoothFactor;
+                    player.rotationSpeed += (player.targetRotationSpeed - player.rotationSpeed) * smoothFactor;
+                    
+                    // Enhanced prediction with velocity extrapolation
+                    if (timeSinceUpdate < 150) {
+                        const predictTime = Math.min(timeSinceUpdate, 33) / 1000;
+                        const velocityFactor = Math.max(0.5, 1 - timeSinceUpdate / 200);
+                        
+                        player.x += player.targetVx * predictTime * 60 * velocityFactor;
+                        player.y += player.targetVy * predictTime * 60 * velocityFactor;
+                        player.rotation += player.targetRotationSpeed * predictTime * 60 * velocityFactor;
+                    }
+                }
+            });
         }
 
         // ===== BOT AI =====
@@ -1234,7 +1386,34 @@
         // ===== GAME LOOP (ORIGINAL PC PHYSICS) =====
         let lastPositionBroadcast = 0;
         
-        function gameLoop() {
+        function gameLoop(currentTime) {
+            if (!currentTime) currentTime = performance.now();
+            
+            // FPS monitoring for performance adaptation
+            frameCount++;
+            if (currentTime - lastFpsCheck > 1000) {
+                currentFps = frameCount;
+                frameCount = 0;
+                lastFpsCheck = currentTime;
+                
+                // Adjust device performance classification
+                if (currentFps < 30) {
+                    devicePerformance = 'low';
+                } else if (currentFps < 50) {
+                    devicePerformance = 'medium';
+                } else {
+                    devicePerformance = 'high';
+                }
+            }
+            
+            // Calculate delta time for consistent physics when window loses focus
+            const deltaTime = Math.min((currentTime - lastFrameTime) / 16.67, 3); // Cap at 3x normal speed
+            lastFrameTime = currentTime;
+            
+            // Interpolate remote players for smooth movement with performance adaptation
+            if (!isOfflineMode) {
+                interpolateRemotePlayers();
+            }
             // Background gradient
             const gradient = ctx.createRadialGradient(
                 GAME_WIDTH / 2, GAME_HEIGHT / 2, 0,
@@ -1264,20 +1443,23 @@
             players.forEach(player => {
                 if (!player.isAlive) return;
 
+                // Apply physics with delta time compensation
+                const physicsMultiplier = isWindowFocused ? 1 : deltaTime;
+                
                 // Apply gravity
-                player.vy += PHYSICS.GRAVITY;
+                player.vy += PHYSICS.GRAVITY * physicsMultiplier;
                 
                 // Apply rotation
-                player.rotation += player.rotationSpeed;
-                player.rotationSpeed *= PHYSICS.ROTATION_DECAY;
+                player.rotation += player.rotationSpeed * physicsMultiplier;
+                player.rotationSpeed *= Math.pow(PHYSICS.ROTATION_DECAY, physicsMultiplier);
                 
                 // Update position
-                player.x += player.vx;
-                player.y += player.vy;
+                player.x += player.vx * physicsMultiplier;
+                player.y += player.vy * physicsMultiplier;
                 
                 // Apply friction
-                player.vx *= PHYSICS.PLAYER_FRICTION;
-                player.vy *= PHYSICS.PLAYER_FRICTION;
+                player.vx *= Math.pow(PHYSICS.PLAYER_FRICTION, physicsMultiplier);
+                player.vy *= Math.pow(PHYSICS.PLAYER_FRICTION, physicsMultiplier);
 
                 // Wall collision with FIXED game boundaries
                 const margin = 30;
@@ -1303,22 +1485,36 @@
                     player.rotationSpeed += (Math.random() - 0.5) * 0.1;
                 }
 
-                // Broadcast position for my player
-                if (player.id === myPlayerId && !isOfflineMode && gameChannel) {
+                // Broadcast position for my player with adaptive frequency
+                if (player.id === myPlayerId && !isOfflineMode && gameChannel && isWindowFocused) {
                     const now = Date.now();
-                    if (now - lastPositionBroadcast > 50) {
+                    
+                    // Adaptive broadcast frequency based on movement
+                    const velocity = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
+                    const rotSpeed = Math.abs(player.rotationSpeed);
+                    
+                    let broadcastInterval = 50; // Default 20fps
+                    
+                    if (velocity > 2 || rotSpeed > 0.05) {
+                        broadcastInterval = 25; // 40fps for fast movement
+                    } else if (velocity < 0.5 && rotSpeed < 0.01) {
+                        broadcastInterval = 100; // 10fps for slow/stationary
+                    }
+                    
+                    if (now - lastPositionBroadcast > broadcastInterval) {
                         lastPositionBroadcast = now;
                         gameChannel.send({
                             type: 'broadcast',
                             event: 'move',
                             payload: {
                                 playerId: myPlayerId,
-                                x: player.x,
-                                y: player.y,
-                                rotation: player.rotation,
-                                vx: player.vx,
-                                vy: player.vy,
-                                rotationSpeed: player.rotationSpeed
+                                x: Math.round(player.x * 100) / 100, // Reduce precision for network
+                                y: Math.round(player.y * 100) / 100,
+                                rotation: Math.round(player.rotation * 1000) / 1000,
+                                vx: Math.round(player.vx * 100) / 100,
+                                vy: Math.round(player.vy * 100) / 100,
+                                rotationSpeed: Math.round(player.rotationSpeed * 1000) / 1000,
+                                timestamp: now
                             }
                         });
                     }
@@ -1373,18 +1569,20 @@
                 ctx.shadowBlur = 0;
             });
 
-            // Update bullets using ORIGINAL PC PHYSICS
+            // Update bullets using ORIGINAL PC PHYSICS with delta time
             bullets = bullets.filter(bullet => {
                 bullet.trail.push({ x: bullet.x, y: bullet.y });
                 if (bullet.trail.length > 10) bullet.trail.shift();
 
-                // Apply bullet physics
-                bullet.vy += PHYSICS.BULLET_GRAVITY;
-                bullet.x += bullet.vx;
-                bullet.y += bullet.vy;
-                bullet.life--;
-                bullet.vx *= PHYSICS.BULLET_FRICTION;
-                bullet.vy *= PHYSICS.BULLET_FRICTION;
+                // Apply bullet physics with delta time compensation
+                const physicsMultiplier = isWindowFocused ? 1 : deltaTime;
+                
+                bullet.vy += PHYSICS.BULLET_GRAVITY * physicsMultiplier;
+                bullet.x += bullet.vx * physicsMultiplier;
+                bullet.y += bullet.vy * physicsMultiplier;
+                bullet.life -= physicsMultiplier;
+                bullet.vx *= Math.pow(PHYSICS.BULLET_FRICTION, physicsMultiplier);
+                bullet.vy *= Math.pow(PHYSICS.BULLET_FRICTION, physicsMultiplier);
 
                 // Draw trail
                 ctx.strokeStyle = bullet.color;
@@ -1465,23 +1663,26 @@
                                 });
                             }
 
-                            if (!isOfflineMode && currentRoom) {
-                                supabase
-                                    .from('recoil_players')
-                                    .update({ is_alive: false, health: 0 })
-                                    .eq('id', player.id)
-                                    .then(() => {});
+                            // Broadcast death immediately via real-time
+                            if (!isOfflineMode && gameChannel) {
+                                gameChannel.send({
+                                    type: 'broadcast',
+                                    event: 'player_death',
+                                    payload: {
+                                        playerId: player.id,
+                                        shooterId: bullet.ownerId,
+                                        timestamp: Date.now()
+                                    }
+                                });
                             }
+                            
+                            // Queue database update (non-blocking)
+                            queueDbUpdate(player.id, { is_alive: false, health: 0 });
                             
                             checkGameEnd();
                         } else {
-                            if (!isOfflineMode && currentRoom) {
-                                supabase
-                                    .from('recoil_players')
-                                    .update({ health: player.health })
-                                    .eq('id', player.id)
-                                    .then(() => {});
-                            }
+                            // Queue health update (batched)
+                            queueDbUpdate(player.id, { health: player.health });
                         }
                     }
                 });
@@ -1494,14 +1695,16 @@
                        bullet.life > 0;
             });
 
-            // Update particles
+            // Update particles with delta time
             particles = particles.filter(particle => {
-                particle.vy += PHYSICS.BULLET_GRAVITY;
-                particle.x += particle.vx;
-                particle.y += particle.vy;
-                particle.life--;
-                particle.vx *= PHYSICS.PLAYER_FRICTION;
-                particle.vy *= PHYSICS.PLAYER_FRICTION;
+                const physicsMultiplier = isWindowFocused ? 1 : deltaTime;
+                
+                particle.vy += PHYSICS.BULLET_GRAVITY * physicsMultiplier;
+                particle.x += particle.vx * physicsMultiplier;
+                particle.y += particle.vy * physicsMultiplier;
+                particle.life -= physicsMultiplier;
+                particle.vx *= Math.pow(PHYSICS.PLAYER_FRICTION, physicsMultiplier);
+                particle.vy *= Math.pow(PHYSICS.PLAYER_FRICTION, physicsMultiplier);
 
                 const alpha = particle.life / particle.maxLife;
                 const alphaHex = Math.floor(alpha * 255).toString(16).padStart(2, '0');
@@ -1513,6 +1716,9 @@
                 return particle.life > 0;
             });
 
+            // Process pending database updates
+            processPendingDbUpdates();
+            
             // Update UI
             const aliveCount = Array.from(players.values()).filter(p => p.isAlive).length;
             const myPlayer = players.get(myPlayerId);
@@ -1522,27 +1728,116 @@
                 document.getElementById('killCount').textContent = 'Kills: ' + (myPlayer.kills || 0);
             }
 
-            animationId = requestAnimationFrame(gameLoop);
+            if (!gameEnded) {
+                animationId = requestAnimationFrame(gameLoop);
+            }
         }
 
         // ===== GAME END =====
         function checkGameEnd() {
-            const alivePlayers = Array.from(players.values()).filter(p => p.isAlive);
+            if (gameEnded) return;
             
-            if (alivePlayers.length === 1) {
-                const winner = alivePlayers[0];
+            const alivePlayers = Array.from(players.values()).filter(p => p.isAlive);
+            const myPlayer = players.get(myPlayerId);
+            
+            // Check if I'm eliminated
+            if (myPlayer && !myPlayer.isAlive && !gameEnded) {
+                gameEnded = true;
                 
                 setTimeout(() => {
                     if (animationId) {
                         cancelAnimationFrame(animationId);
                     }
                     
-                    document.getElementById('winnerName').textContent = winner.player_name;
-                    document.getElementById('winnerKills').textContent = winner.kills || 0;
+                    const totalPlayers = Array.from(players.values()).length;
+                    const placement = totalPlayers - alivePlayers.length + 1;
+                    
+                    document.getElementById('eliminatedBy').textContent = 'You were eliminated!';
+                    document.getElementById('yourKills').textContent = myPlayer.kills || 0;
+                    document.getElementById('finalPlacement').textContent = getPlacementText(placement, totalPlayers);
                     
                     clearSession();
-                    switchScreen('winner');
+                    switchScreen('eliminated');
                 }, 2000);
+                return;
+            }
+            
+            // Check if game is won
+            if (alivePlayers.length === 1) {
+                const winner = alivePlayers[0];
+                gameEnded = true;
+                
+                setTimeout(() => {
+                    if (animationId) {
+                        cancelAnimationFrame(animationId);
+                    }
+                    
+                    if (winner.id === myPlayerId) {
+                        // I won!
+                        document.getElementById('winnerName').textContent = 'You Won!';
+                        document.getElementById('winnerKills').textContent = winner.kills || 0;
+                        switchScreen('winner');
+                    } else {
+                        // Someone else won
+                        document.getElementById('winnerName').textContent = winner.player_name + ' Won!';
+                        document.getElementById('winnerKills').textContent = winner.kills || 0;
+                        switchScreen('winner');
+                    }
+                    
+                    clearSession();
+                }, 2000);
+            }
+        }
+        
+        function getPlacementText(placement, total) {
+            const suffix = placement === 1 ? 'st' : placement === 2 ? 'nd' : placement === 3 ? 'rd' : 'th';
+            return placement + suffix + ' out of ' + total;
+        }
+
+        // ===== OPTIMIZED DATABASE OPERATIONS =====
+        function queueDbUpdate(playerId, updates) {
+            if (isOfflineMode) return;
+            
+            // Merge with existing pending updates
+            const existing = pendingDbUpdates.get(playerId) || {};
+            pendingDbUpdates.set(playerId, { ...existing, ...updates });
+        }
+
+        function processPendingDbUpdates() {
+            if (isOfflineMode || pendingDbUpdates.size === 0) return;
+            
+            const now = Date.now();
+            if (now - lastDbUpdate < 500) return; // Batch updates every 500ms
+            
+            lastDbUpdate = now;
+            
+            // Process all pending updates in batch
+            const updates = Array.from(pendingDbUpdates.entries()).map(([playerId, data]) => {
+                return supabase
+                    .from('recoil_players')
+                    .update(data)
+                    .eq('id', playerId);
+            });
+            
+            // Execute all updates concurrently
+            Promise.allSettled(updates).then(() => {
+                pendingDbUpdates.clear();
+            });
+        }
+
+        function handleRemotePlayerDeath(payload) {
+            const { playerId, shooterId } = payload.payload;
+            
+            const player = players.get(playerId);
+            const shooter = players.get(shooterId);
+            
+            if (player) {
+                player.isAlive = false;
+                player.health = 0;
+            }
+            
+            if (shooter) {
+                shooter.kills = (shooter.kills || 0) + 1;
             }
         }
 
