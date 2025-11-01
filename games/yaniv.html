@@ -31,13 +31,48 @@
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
             border-radius: 20px;
-            padding: 40px;
+            padding: 30px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             margin: 20px auto;
-            max-width: 800px;
+            max-width: 500px;
         }
 
         .screen.active {
+            display: block;
+        }
+        
+        .mode-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 5px;
+            border-radius: 10px;
+        }
+        
+        .mode-toggle button {
+            flex: 1;
+            padding: 12px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1em;
+        }
+        
+        .mode-toggle button.active {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .mode-content {
+            display: none;
+        }
+        
+        .mode-content.active {
             display: block;
         }
 
@@ -55,11 +90,11 @@
             margin-bottom: 30px;
         }
 
-        .config-section {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 25px;
-            border-radius: 15px;
-            margin-bottom: 20px;
+        .divider {
+            text-align: center;
+            margin: 20px 0;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.9em;
         }
 
         label {
@@ -788,29 +823,31 @@
             <h1>🃏 Yaniv</h1>
             <p class="subtitle">Call "Show" to win with ≤10 points!</p>
             
-            <div class="config-section">
-                <h2 style="margin-bottom: 20px;">🎮 Start Game</h2>
-                <label>Your Name</label>
-                <input type="text" id="playerName" placeholder="Enter your name">
-                
-                <label>Number of Players</label>
+            <input type="text" id="playerName" placeholder="Enter your name">
+            
+            <div class="mode-toggle">
+                <button class="active" id="offlineBtn" onclick="switchMode('offline')">🤖 Offline</button>
+                <button id="onlineBtn" onclick="switchMode('online')">🌐 Online</button>
+            </div>
+            
+            <!-- Offline Mode -->
+            <div id="offlineMode" class="mode-content active">
+                <button class="btn" onclick="startOfflineGame()">🎮 Play vs Bot</button>
+            </div>
+            
+            <!-- Online Mode -->
+            <div id="onlineMode" class="mode-content">
                 <select id="numPlayers">
                     <option value="2">2 Players</option>
                     <option value="3">3 Players</option>
                     <option value="4">4 Players</option>
                 </select>
                 
-                <button class="btn" onclick="createGame()">🎲 Create New Game</button>
-            </div>
-            
-            <div class="config-section">
-                <h2 style="margin-bottom: 20px;">🔗 Join Game</h2>
-                <label>Your Name</label>
-                <input type="text" id="joinPlayerName" placeholder="Enter your name">
+                <button class="btn btn-secondary" onclick="createGame()">🎲 Create Game</button>
                 
-                <label>Room Code</label>
+                <div class="divider">OR</div>
+                
                 <input type="text" id="roomCode" placeholder="Enter room code">
-                
                 <button class="btn btn-secondary" onclick="joinGame()" id="joinBtn">🚪 Join Game</button>
             </div>
         </div>
@@ -904,6 +941,15 @@
         </div>
     </div>
 
+    <!-- Reveal Cards Modal -->
+    <div class="modal" id="revealModal">
+        <div class="game-over-modal">
+            <h2 style="font-size: 2.5em; margin-bottom: 30px;">📋 All Hands Revealed</h2>
+            <div id="revealedHands"></div>
+            <button class="play-again-btn" onclick="showFinalResults()">Continue →</button>
+        </div>
+    </div>
+
     <!-- Game Over Modal -->
     <div class="modal" id="gameOverModal">
         <div class="game-over-modal">
@@ -989,9 +1035,70 @@
         let opponentDiscardCards = [];
         let isJoining = false;
         let waitingRoomInterval = null;
+        let isOfflineMode = false;
+        let botHand = [];
+        let botThinkingTimeout = null;
 
         const suits = ['♠', '♥', '♦', '♣'];
         const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        const botNames = ['Pappu', 'Bablu', 'Chintu', 'Bunty', 'Guddu', 'Munna', 'Raju', 'Shyam', 'Golu', 'Tinku'];
+        
+        function switchMode(mode) {
+            const offlineBtn = document.getElementById('offlineBtn');
+            const onlineBtn = document.getElementById('onlineBtn');
+            const offlineMode = document.getElementById('offlineMode');
+            const onlineMode = document.getElementById('onlineMode');
+            
+            if (mode === 'offline') {
+                offlineBtn.classList.add('active');
+                onlineBtn.classList.remove('active');
+                offlineMode.classList.add('active');
+                onlineMode.classList.remove('active');
+            } else {
+                onlineBtn.classList.add('active');
+                offlineBtn.classList.remove('active');
+                onlineMode.classList.add('active');
+                offlineMode.classList.remove('active');
+            }
+        }
+        
+        function startOfflineGame() {
+            playerName = document.getElementById('playerName').value.trim();
+            if (!playerName) {
+                showMessage('Please enter your name', 'error');
+                return;
+            }
+            
+            isOfflineMode = true;
+            const deck = createDeck();
+            const botName = botNames[Math.floor(Math.random() * botNames.length)];
+            
+            // Deal cards
+            myHand = [];
+            botHand = [];
+            for (let i = 0; i < 7; i++) {
+                myHand.push(deck.pop());
+                botHand.push(deck.pop());
+            }
+            
+            gameState = {
+                deck: deck,
+                discard_pile: [deck.pop()],
+                current_player: 0
+            };
+            
+            allPlayers = [
+                { id: 'player', player_name: playerName, hand: myHand, player_index: 0 },
+                { id: 'bot', player_name: botName, hand: botHand, player_index: 1 }
+            ];
+            
+            playerId = 'player';
+            hasThrown = false;
+            myThrownCards = [];
+            
+            showScreen('gameScreen');
+            renderGame();
+        }
 
         // Prevent back navigation and show confirmation
         let isInGame = false;
@@ -1238,7 +1345,7 @@
             const joinBtn = document.getElementById('joinBtn');
             joinBtn.disabled = true;
             
-            playerName = document.getElementById('joinPlayerName').value.trim();
+            playerName = document.getElementById('playerName').value.trim();
             const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
             
             if (!playerName || !roomCode) {
@@ -1442,6 +1549,13 @@
             const currentPlayer = allPlayers[gameState.current_player];
             const isMyTurn = currentPlayer.id === playerId;
             
+            // Bot turn in offline mode
+            if (isOfflineMode && !isMyTurn && currentPlayer.id === 'bot') {
+                setTimeout(() => {
+                    botTurn();
+                }, 1500);
+            }
+            
             if (!isMyTurn) {
                 selectedCards = [];
             }
@@ -1451,30 +1565,27 @@
                 renderCard(card, idx, false)
             ).join('');
             
-            // Split discard pile into opponent's cards and my thrown cards
+            // Handle discard pile display
             const totalDiscard = gameState.discard_pile || [];
             
-            if (myThrownCards.length > 0 && isMyTurn && !hasThrown) {
-                // Keep showing my previously thrown cards until I throw again
+            // Show my thrown cards
+            if (hasThrown && myThrownCards.length > 0) {
                 document.getElementById('myThrowPile').innerHTML = myThrownCards.map(card => 
-                    renderCard(card, undefined, true)
-                ).join('');
-            } else if (hasThrown && selectedCards.length === 0) {
-                // Show cards I just threw
-                const justThrown = totalDiscard.slice(-myThrownCards.length);
-                document.getElementById('myThrowPile').innerHTML = justThrown.map(card => 
                     renderCard(card, undefined, true)
                 ).join('');
             } else {
                 document.getElementById('myThrowPile').innerHTML = '<p style="opacity: 0.5; font-size: 0.9em;">No cards thrown yet</p>';
             }
             
-            // Show opponent's discard (all cards except my thrown ones)
-            const myThrowCount = hasThrown ? myThrownCards.length : 0;
-            const opponentCards = totalDiscard.slice(0, totalDiscard.length - myThrowCount);
+            // Show opponent's cards (exclude my current thrown cards)
+            let opponentCards = [];
+            if (hasThrown && myThrownCards.length > 0) {
+                opponentCards = totalDiscard.slice(0, -myThrownCards.length);
+            } else {
+                opponentCards = totalDiscard;
+            }
             
             if (opponentCards.length > 0) {
-                // Show last 5 cards from opponents
                 const displayCards = opponentCards.slice(-5);
                 document.getElementById('opponentDiscardPile').innerHTML = displayCards.map(card => 
                     renderCard(card, undefined, true)
@@ -1599,6 +1710,11 @@
                 return;
             }
             
+            if (isOfflineMode) {
+                offlineThrowCards(cardsToThrow);
+                return;
+            }
+            
             try {
                 const { data: latestGame } = await supabase
                     .from('yaniv_games')
@@ -1631,6 +1747,20 @@
                 showMessage('Failed to throw cards: ' + error.message, 'error');
             }
         }
+        
+        function offlineThrowCards(cardsToThrow) {
+            const newHand = myHand.filter((_, i) => !selectedCards.includes(i));
+            gameState.discard_pile.push(...cardsToThrow);
+            
+            myHand = newHand;
+            allPlayers[0].hand = myHand;
+            hasThrown = true;
+            myThrownCards = cardsToThrow;
+            selectedCards = [];
+            
+            showMessage('Cards thrown! Now draw a card.', 'success');
+            renderGame();
+        }
 
         async function drawCard() {
             const currentPlayer = allPlayers[gameState.current_player];
@@ -1641,6 +1771,11 @@
             
             if (!hasThrown) {
                 showMessage('Throw cards first!', 'error');
+                return;
+            }
+            
+            if (isOfflineMode) {
+                offlineDrawCard();
                 return;
             }
             
@@ -1678,6 +1813,19 @@
                 showMessage('Failed to draw card: ' + error.message, 'error');
             }
         }
+        
+        function offlineDrawCard() {
+            const drawnCard = gameState.deck.pop();
+            myHand.push(drawnCard);
+            allPlayers[0].hand = myHand;
+            
+            gameState.current_player = 1;
+            hasThrown = false;
+            myThrownCards = [];
+            selectedCards = [];
+            
+            renderGame();
+        }
 
         async function drawFromDiscard() {
             const currentPlayer = allPlayers[gameState.current_player];
@@ -1688,6 +1836,11 @@
             
             if (!hasThrown) {
                 showMessage('Throw cards first!', 'error');
+                return;
+            }
+            
+            if (isOfflineMode) {
+                offlineDrawFromDiscard();
                 return;
             }
             
@@ -1749,6 +1902,29 @@
                 showMessage('Failed to draw from discard: ' + error.message, 'error');
             }
         }
+        
+        function offlineDrawFromDiscard() {
+            const availableCards = gameState.discard_pile.slice(0, -myThrownCards.length);
+            
+            if (availableCards.length === 0) {
+                showMessage('No opponent cards to pick!', 'error');
+                return;
+            }
+            
+            const drawnCard = availableCards[availableCards.length - 1];
+            const cardIdx = gameState.discard_pile.lastIndexOf(drawnCard);
+            gameState.discard_pile.splice(cardIdx, 1);
+            
+            myHand.push(drawnCard);
+            allPlayers[0].hand = myHand;
+            
+            gameState.current_player = 1;
+            hasThrown = false;
+            myThrownCards = [];
+            selectedCards = [];
+            
+            renderGame();
+        }
 
         async function showGameResult() {
             try {
@@ -1804,6 +1980,11 @@
                 return;
             }
             
+            if (isOfflineMode) {
+                offlineCallShow();
+                return;
+            }
+            
             try {
                 const { data: currentPlayers } = await supabase
                     .from('yaniv_players')
@@ -1811,13 +1992,20 @@
                     .eq('game_id', gameId)
                     .order('player_index');
                 
+                const caller = currentPlayers.find(p => p.id === playerId);
                 const playerScores = currentPlayers.map(p => ({
                     name: p.player_name,
-                    value: calculateHandValue(p.hand)
+                    value: calculateHandValue(p.hand),
+                    isCaller: p.id === playerId
                 }));
                 
                 const lowestScore = Math.min(...playerScores.map(p => p.value));
-                const winner = playerScores.find(p => p.value === lowestScore);
+                const playersWithLowest = playerScores.filter(p => p.value === lowestScore);
+                
+                // Tie-breaker: if multiple players have lowest score, caller loses
+                const winner = playersWithLowest.length > 1 && playersWithLowest.some(p => p.isCaller)
+                    ? playersWithLowest.find(p => !p.isCaller)
+                    : playersWithLowest[0];
                 
                 await supabase
                     .from('yaniv_games')
@@ -1834,15 +2022,57 @@
                 showMessage('Failed to call SHOW: ' + error.message, 'error');
             }
         }
-
-        function showGameOverModal(winner, playerScores) {
-            document.getElementById('winnerName').textContent = `${winner.name} Wins!`;
+        
+        function offlineCallShow() {
+            const playerScores = allPlayers.map(p => ({
+                name: p.player_name,
+                value: calculateHandValue(p.hand),
+                isCaller: p.id === playerId
+            }));
             
-            const scoresHtml = playerScores
+            const lowestScore = Math.min(...playerScores.map(p => p.value));
+            const playersWithLowest = playerScores.filter(p => p.value === lowestScore);
+            
+            // Tie-breaker: if multiple players have lowest score, caller loses
+            const winner = playersWithLowest.length > 1 && playersWithLowest.some(p => p.isCaller)
+                ? playersWithLowest.find(p => !p.isCaller)
+                : playersWithLowest[0];
+            
+            showGameOverModal(winner, playerScores);
+        }
+
+        let finalWinner, finalPlayerScores;
+        
+        function showGameOverModal(winner, playerScores) {
+            finalWinner = winner;
+            finalPlayerScores = playerScores;
+            
+            const handsHtml = allPlayers.map(p => {
+                const score = playerScores.find(ps => ps.name === p.player_name);
+                return `
+                    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; margin: 15px 0;">
+                        <h3 style="margin-bottom: 15px;">${p.player_name} - ${score.value} points</h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
+                            ${p.hand.map(card => renderCard(card, undefined, true)).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('revealedHands').innerHTML = handsHtml;
+            document.getElementById('revealModal').classList.add('active');
+        }
+        
+        function showFinalResults() {
+            document.getElementById('revealModal').classList.remove('active');
+            
+            document.getElementById('winnerName').textContent = `${finalWinner.name} Wins!`;
+            
+            const scoresHtml = finalPlayerScores
                 .sort((a, b) => a.value - b.value)
                 .map(player => `
-                    <div class="score-row ${player.name === winner.name ? 'winner-row' : ''}">
-                        <span>${player.name === winner.name ? '👑 ' : ''}${player.name}</span>
+                    <div class="score-row ${player.name === finalWinner.name ? 'winner-row' : ''}">
+                        <span>${player.name === finalWinner.name ? '👑 ' : ''}${player.name}</span>
                         <span>${player.value} points</span>
                     </div>
                 `).join('');
@@ -1880,6 +2110,166 @@
             }, 1000);
         }
 
+        function botTurn() {
+            const botHandValue = calculateHandValue(botHand);
+            const playerHandValue = calculateHandValue(myHand);
+            
+            // Advanced show logic: call if ≤7 OR if ≤10 and player likely has higher
+            if (botHandValue <= 7 || (botHandValue <= 10 && playerHandValue > botHandValue + 3)) {
+                const playerScores = allPlayers.map(p => ({
+                    name: p.player_name,
+                    value: calculateHandValue(p.hand)
+                }));
+                
+                const lowestScore = Math.min(...playerScores.map(p => p.value));
+                const winner = playerScores.find(p => p.value === lowestScore);
+                
+                showGameOverModal(winner, playerScores);
+                return;
+            }
+            
+            // Bot throws cards
+            const cardsToThrow = getBotThrow();
+            gameState.discard_pile.push(...cardsToThrow);
+            
+            // Remove thrown cards from bot hand
+            cardsToThrow.forEach(throwCard => {
+                const index = botHand.findIndex(card => 
+                    card.rank === throwCard.rank && card.suit === throwCard.suit
+                );
+                if (index !== -1) botHand.splice(index, 1);
+            });
+            
+            allPlayers[1].hand = botHand;
+            
+            // Smart draw decision
+            const shouldDrawFromDiscard = shouldBotDrawFromDiscard();
+            
+            if (shouldDrawFromDiscard) {
+                const drawnCard = gameState.discard_pile.splice(-2, 1)[0];
+                botHand.push(drawnCard);
+            } else {
+                const drawnCard = gameState.deck.pop();
+                botHand.push(drawnCard);
+            }
+            
+            allPlayers[1].hand = botHand;
+            gameState.current_player = 0;
+            
+            renderGame();
+        }
+        
+        function getBotThrow() {
+            // Find all possible valid throws and rank them
+            const allThrows = findAllValidThrows(botHand);
+            
+            // Score each throw: prioritize high-value cards, prefer sets/runs over singles
+            const scoredThrows = allThrows.map(throwCards => {
+                const totalValue = throwCards.reduce((sum, c) => sum + getCardValue(c), 0);
+                const count = throwCards.length;
+                const avgValue = totalValue / count;
+                
+                // Bonus for sets/runs (more efficient)
+                const efficiencyBonus = count > 1 ? count * 5 : 0;
+                
+                return {
+                    cards: throwCards,
+                    score: totalValue + efficiencyBonus + avgValue
+                };
+            });
+            
+            // Return highest scoring throw
+            scoredThrows.sort((a, b) => b.score - a.score);
+            return scoredThrows[0].cards;
+        }
+        
+        function findAllValidThrows(hand) {
+            const throws = [];
+            
+            // Singles
+            hand.forEach(card => throws.push([card]));
+            
+            // Pairs and sets (same rank)
+            const byRank = {};
+            hand.forEach(card => {
+                if (!byRank[card.rank]) byRank[card.rank] = [];
+                byRank[card.rank].push(card);
+            });
+            
+            for (let rank in byRank) {
+                if (byRank[rank].length >= 2) {
+                    throws.push(byRank[rank].slice(0, 2));
+                    if (byRank[rank].length >= 3) throws.push(byRank[rank].slice(0, 3));
+                    if (byRank[rank].length === 4) throws.push(byRank[rank]);
+                }
+            }
+            
+            // Runs (consecutive same suit)
+            const bySuit = {};
+            hand.forEach(card => {
+                if (card.rank !== 'JOKER') {
+                    if (!bySuit[card.suit]) bySuit[card.suit] = [];
+                    bySuit[card.suit].push(card);
+                }
+            });
+            
+            for (let suit in bySuit) {
+                const cards = bySuit[suit].sort((a, b) => {
+                    const aIdx = ranks.indexOf(a.rank);
+                    const bIdx = ranks.indexOf(b.rank);
+                    return aIdx - bIdx;
+                });
+                
+                for (let i = 0; i < cards.length - 2; i++) {
+                    const run = [cards[i]];
+                    for (let j = i + 1; j < cards.length; j++) {
+                        const lastIdx = ranks.indexOf(run[run.length - 1].rank);
+                        const currIdx = ranks.indexOf(cards[j].rank);
+                        if (currIdx === lastIdx + 1) {
+                            run.push(cards[j]);
+                        } else break;
+                    }
+                    if (run.length >= 3) throws.push([...run]);
+                }
+            }
+            
+            return throws;
+        }
+        
+        function shouldBotDrawFromDiscard() {
+            if (gameState.discard_pile.length < 2) return false;
+            
+            const topCard = gameState.discard_pile[gameState.discard_pile.length - 2];
+            const topValue = getCardValue(topCard);
+            
+            // Never draw high cards
+            if (topValue >= 8) return false;
+            
+            // Check if it completes a set
+            const matchingRank = botHand.filter(c => c.rank === topCard.rank).length;
+            if (matchingRank >= 1) return true;
+            
+            // Check if it completes a run
+            const sameSuit = botHand.filter(c => c.suit === topCard.suit);
+            if (sameSuit.length >= 2) {
+                const topIdx = ranks.indexOf(topCard.rank);
+                for (let card of sameSuit) {
+                    const cardIdx = ranks.indexOf(card.rank);
+                    if (Math.abs(cardIdx - topIdx) === 1) return true;
+                }
+            }
+            
+            // Draw low value cards (Ace, 2, 3)
+            return topValue <= 3;
+        }
+        
+        function getCardValue(card) {
+            if (card.rank === 'JOKER') return 0;
+            if (card.rank === 'A') return 1;
+            if (['J', 'Q', 'K'].includes(card.rank)) return 10;
+            return parseInt(card.rank);
+        }
+        
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
