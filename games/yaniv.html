@@ -648,12 +648,12 @@
 
         @media (max-width: 768px) {
             .container {
-                padding: 10px;
+                padding: 5px;
             }
 
             .screen {
-                padding: 20px;
-                margin: 10px;
+                padding: 15px;
+                margin: 5px;
             }
 
             h1 {
@@ -661,36 +661,94 @@
             }
 
             .game-board {
-                grid-template-columns: 1fr;
-                gap: 10px;
-            }
-
-            .discard-section {
+                display: flex;
                 flex-direction: column;
+                gap: 15px;
             }
 
-            .card {
-                width: 55px;
-                height: 80px;
-                font-size: 1.2em;
+            .turn-indicator {
+                order: 1;
+                font-size: 1.1em;
+                padding: 10px;
+                margin-bottom: 10px;
             }
 
-            .card.small {
-                width: 40px;
-                height: 60px;
+            .opponents-area {
+                order: 2;
+                padding: 10px;
+            }
+
+            .opponent-card {
+                padding: 8px;
+                margin-bottom: 5px;
                 font-size: 0.9em;
             }
 
-            .my-hand {
+            .center-area {
+                order: 3;
+            }
+
+            .discard-section {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+                margin-bottom: 15px;
+            }
+
+            .discard-pile, .my-throw-pile {
+                padding: 10px;
+                min-height: 100px;
+            }
+
+            .pile-label {
+                font-size: 0.8em;
+            }
+
+            .deck-pile {
                 padding: 15px;
+                min-height: 100px;
+            }
+
+            .info-area {
+                display: none;
+            }
+
+            .my-hand {
+                order: 4;
+                padding: 10px;
+                margin-top: 10px;
+            }
+
+            .card {
+                width: 45px;
+                height: 65px;
+                font-size: 1em;
+            }
+
+            .card.small {
+                width: 35px;
+                height: 50px;
+                font-size: 0.8em;
+            }
+
+            .card-value {
+                font-size: 1em;
+            }
+
+            .card-suit {
+                font-size: 0.8em;
             }
 
             .actions-area {
-                flex-direction: column;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                margin-top: 15px;
             }
 
             .action-btn {
-                width: 100%;
+                padding: 12px 15px;
+                font-size: 1em;
             }
 
             .room-code-display {
@@ -702,7 +760,7 @@
                 padding: 15px;
             }
 
-            .modal-content, .game-over-modal,             .confirm-modal, .abort-modal {
+            .modal-content, .game-over-modal, .confirm-modal, .abort-modal {
                 margin: 20px;
                 max-width: 90%;
                 padding: 30px 20px;
@@ -930,6 +988,7 @@
         let myThrownCards = [];
         let opponentDiscardCards = [];
         let isJoining = false;
+        let waitingRoomInterval = null;
 
         const suits = ['♠', '♥', '♦', '♣'];
         const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
@@ -999,20 +1058,26 @@
 
         async function notifyGameAborted() {
             try {
-                // Mark the game as aborted and store who left
-                await supabase
-                    .from('yaniv_games')
-                    .update({ 
-                        status: 'aborted',
-                        winner_name: playerName // Store who left in winner_name field
-                    })
-                    .eq('id', gameId);
+                const currentScreen = document.querySelector('.screen.active').id;
                 
-                // Delete the player who left
-                await supabase
-                    .from('yaniv_players')
-                    .delete()
-                    .eq('id', playerId);
+                if (currentScreen === 'waitingScreen') {
+                    // Just remove player from lobby - triggers real-time update
+                    console.log("Here")
+                    console.log("playerId : " +playerId);
+                    await supabase
+                        .from('yaniv_players')
+                        .delete()
+                        .eq('id', playerId);
+                } else if (currentScreen === 'gameScreen') {
+                    // Mark game as aborted and remove player
+                    await supabase
+                        .from('yaniv_games')
+                        .update({ 
+                            status: 'aborted',
+                            winner_name: playerName // Store who left in winner_name field
+                        })
+                        .eq('id', gameId);
+                }
             } catch (error) {
                 console.error('Error notifying game abort:', error);
             }
@@ -1159,6 +1224,7 @@
                 showScreen('waitingScreen');
                 setupRealtimeSubscription();
                 updateWaitingRoom();
+                startWaitingRoomPolling();
                 saveGameState();
             } catch (error) {
                 showMessage('Failed to create game: ' + error.message, 'error');
@@ -1226,6 +1292,7 @@
                 showScreen('waitingScreen');
                 setupRealtimeSubscription();
                 updateWaitingRoom();
+                startWaitingRoomPolling();
                 saveGameState();
             } catch (error) {
                 showMessage('Failed to join game: ' + error.message, 'error');
@@ -1325,13 +1392,17 @@
             } else if (payload.new.status === 'finished') {
                 showGameResult();
             } else if (payload.new.status === 'aborted') {
-                showMatchAborted(payload.new.winner_name);
+                // Only show abort modal if we're currently in game screen
+                const currentScreen = document.querySelector('.screen.active').id;
+                if (currentScreen === 'gameScreen') {
+                    showMatchAborted(payload.new.winner_name);
+                }
             } else {
                 updateWaitingRoom();
             }
         }
 
-        function handlePlayerUpdate() {
+        function handlePlayerUpdate(payload) {
             const currentScreen = document.querySelector('.screen.active').id;
             if (currentScreen === 'waitingScreen') {
                 updateWaitingRoom();
@@ -1433,7 +1504,7 @@
             document.getElementById('opponentsArea').innerHTML = opponentsHtml;
             
             const handValue = calculateHandValue(myHand);
-            document.getElementById('showBtn').disabled = !isMyTurn || handValue > 10;
+            document.getElementById('showBtn').disabled = !isMyTurn || handValue > 10 || hasThrown;
             document.getElementById('throwBtn').disabled = !isMyTurn || selectedCards.length === 0 || hasThrown;
         }
 
@@ -1718,6 +1789,11 @@
                 return;
             }
             
+            if (hasThrown) {
+                showMessage('You cannot call SHOW after throwing cards. Draw a card first!', 'error');
+                return;
+            }
+            
             const handValue = calculateHandValue(myHand);
             if (handValue > 10) {
                 showMessage('Your hand value must be 10 or less to call SHOW!', 'error');
@@ -1791,9 +1867,27 @@
             }
         }
 
+        function startWaitingRoomPolling() {
+            if (waitingRoomInterval) clearInterval(waitingRoomInterval);
+            waitingRoomInterval = setInterval(() => {
+                const currentScreen = document.querySelector('.screen.active').id;
+                if (currentScreen === 'waitingScreen') {
+                    updateWaitingRoom();
+                } else {
+                    clearInterval(waitingRoomInterval);
+                    waitingRoomInterval = null;
+                }
+            }, 1000);
+        }
+
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
+            
+            if (screenId !== 'waitingScreen' && waitingRoomInterval) {
+                clearInterval(waitingRoomInterval);
+                waitingRoomInterval = null;
+            }
         }
 
         function showMessage(text, type) {
