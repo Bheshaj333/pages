@@ -191,6 +191,30 @@
             display: block;
         }
 
+        .eliminated-overlay {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            display: none;
+        }
+
+        .eliminated-overlay.active {
+            display: block;
+        }
+
+        .eliminated-box {
+            background: rgba(231, 76, 60, 0.6);
+            padding: 10px 20px;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            white-space: nowrap;
+        }
+
         .lobby-container {
             max-width: 600px;
             width: 90%;
@@ -407,6 +431,26 @@
                 font-size: 14px;
                 padding: 8px 15px;
             }
+
+            .eliminated-overlay {
+                top: 55px;
+            }
+
+            .eliminated-box {
+                font-size: 14px;
+                padding: 8px 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .eliminated-overlay {
+                top: 50px;
+            }
+
+            .eliminated-box {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
         }
     </style>
 </head>
@@ -470,6 +514,11 @@
                 <span id="aliveCount">Players: 0</span> | 
                 <span id="killCount">Kills: 0</span>
             </div>
+            <div class="eliminated-overlay" id="eliminatedOverlay">
+                <div class="eliminated-box">
+                    ELIMINATED
+                </div>
+            </div>
         </div>
 
         <div id="winnerScreen" class="screen">
@@ -479,19 +528,6 @@
                 <div class="stats-box">
                     <p>🎯 Eliminations: <span id="winnerKills">0</span></p>
                     <p style="color: #a0d8f1;">The gravity-defying champion!</p>
-                </div>
-                <button onclick="backToMenu()">Back to Menu</button>
-            </div>
-        </div>
-
-        <div id="eliminatedScreen" class="screen">
-            <div class="menu-container winner-screen">
-                <h1 style="color: #e74c3c;">💀 ELIMINATED 💀</h1>
-                <h2 id="eliminatedBy"></h2>
-                <div class="stats-box">
-                    <p>🎯 Your Eliminations: <span id="yourKills">0</span></p>
-                    <p>📊 Final Placement: <span id="finalPlacement"></span></p>
-                    <p style="color: #a0d8f1;">Better luck next time!</p>
                 </div>
                 <button onclick="backToMenu()">Back to Menu</button>
             </div>
@@ -721,6 +757,7 @@
             } else {
                 document.getElementById('leaveBtn').classList.remove('active');
                 document.getElementById('gameStats').classList.remove('active');
+                document.getElementById('eliminatedOverlay').classList.remove('active');
                 if (screenName === 'menu' || screenName === 'winner') {
                     isInGame = false;
                 }
@@ -1740,58 +1777,70 @@
             const alivePlayers = Array.from(players.values()).filter(p => p.isAlive);
             const myPlayer = players.get(myPlayerId);
             
-            // Check if I'm eliminated
-            if (myPlayer && !myPlayer.isAlive && !gameEnded) {
-                gameEnded = true;
-                
-                setTimeout(() => {
-                    if (animationId) {
-                        cancelAnimationFrame(animationId);
-                    }
-                    
-                    const totalPlayers = Array.from(players.values()).length;
-                    const placement = totalPlayers - alivePlayers.length + 1;
-                    
-                    document.getElementById('eliminatedBy').textContent = 'You were eliminated!';
-                    document.getElementById('yourKills').textContent = myPlayer.kills || 0;
-                    document.getElementById('finalPlacement').textContent = getPlacementText(placement, totalPlayers);
-                    
-                    clearSession();
-                    switchScreen('eliminated');
-                }, 2000);
-                return;
+            // Check if I'm eliminated (become spectator)
+            if (myPlayer && !myPlayer.isAlive && !document.getElementById('eliminatedOverlay').classList.contains('active')) {
+                showSpectatorMode();
             }
             
-            // Check if game is won
-            if (alivePlayers.length === 1) {
+            // Check if game is won (only host broadcasts game end)
+            if (alivePlayers.length === 1 && isHost && !gameEnded) {
                 const winner = alivePlayers[0];
                 gameEnded = true;
                 
-                setTimeout(() => {
-                    if (animationId) {
-                        cancelAnimationFrame(animationId);
-                    }
-                    
-                    if (winner.id === myPlayerId) {
-                        // I won!
-                        document.getElementById('winnerName').textContent = 'You Won!';
-                        document.getElementById('winnerKills').textContent = winner.kills || 0;
-                        switchScreen('winner');
-                    } else {
-                        // Someone else won
-                        document.getElementById('winnerName').textContent = winner.player_name + ' Won!';
-                        document.getElementById('winnerKills').textContent = winner.kills || 0;
-                        switchScreen('winner');
-                    }
-                    
-                    clearSession();
-                }, 2000);
+                // Broadcast game end to all players
+                if (!isOfflineMode && gameChannel) {
+                    gameChannel.send({
+                        type: 'broadcast',
+                        event: 'game_end',
+                        payload: {
+                            winnerId: winner.id,
+                            winnerName: winner.player_name,
+                            winnerKills: winner.kills || 0,
+                            timestamp: Date.now()
+                        }
+                    });
+                }
+                
+                // Show victory screen for host
+                showVictoryScreen(winner);
             }
         }
         
-        function getPlacementText(placement, total) {
-            const suffix = placement === 1 ? 'st' : placement === 2 ? 'nd' : placement === 3 ? 'rd' : 'th';
-            return placement + suffix + ' out of ' + total;
+        function showSpectatorMode() {
+            document.getElementById('eliminatedOverlay').classList.add('active');
+        }
+        
+        function showVictoryScreen(winner) {
+            setTimeout(() => {
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+                
+                if (winner.id === myPlayerId) {
+                    document.getElementById('winnerName').textContent = 'You Won!';
+                } else {
+                    document.getElementById('winnerName').textContent = winner.player_name + ' Won!';
+                }
+                document.getElementById('winnerKills').textContent = winner.kills || 0;
+                
+                clearSession();
+                switchScreen('winner');
+            }, 2000);
+        }
+        
+        function handleGameEnd(payload) {
+            if (gameEnded) return;
+            
+            const { winnerId, winnerName, winnerKills } = payload.payload;
+            gameEnded = true;
+            
+            const winner = {
+                id: winnerId,
+                player_name: winnerName,
+                kills: winnerKills
+            };
+            
+            showVictoryScreen(winner);
         }
 
         // ===== OPTIMIZED DATABASE OPERATIONS =====
@@ -1839,6 +1888,9 @@
             if (shooter) {
                 shooter.kills = (shooter.kills || 0) + 1;
             }
+            
+            // Check for game end after remote death
+            setTimeout(() => checkGameEnd(), 100);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
