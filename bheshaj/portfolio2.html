@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bheshaj Singh — Level 25 Engineer</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #0f0e17;
+  --surface: #1a1928;
+  --card: #201f31;
+  --border: #2e2c48;
+  --yellow: #ffd23f;
+  --purple: #8b5cf6;
+  --purple-light: #a78bfa;
+  --green: #22c55e;
+  --blue: #38bdf8;
+  --red: #f87171;
+  --orange: #fb923c;
+  --pink: #f472b6;
+  --text: #e2e1f0;
+  --muted: #7c7a9e;
+  --pixel: 'Press Start 2P', monospace;
+  --body: 'Nunito', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text); font-family: var(--body); overflow-x: hidden; }
+
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 30% 70%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 55% 25%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 75% 80%, rgba(255,255,255,0.25) 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 40%, rgba(255,255,255,0.35) 0%, transparent 100%),
+    radial-gradient(1px 1px at 20% 90%, rgba(255,255,255,0.2) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 45% 55%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 65% 10%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 60%, rgba(255,255,255,0.2) 0%, transparent 100%),
+    radial-gradient(1px 1px at 5% 45%, rgba(255,255,255,0.35) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.wrap { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 0 1.25rem 4rem; }
+
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(15,14,23,0.92); backdrop-filter: blur(10px);
+  border-bottom: 2px solid var(--border);
+  padding: .75rem 1.5rem;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nav-logo { font-family: var(--pixel); font-size: .55rem; color: var(--yellow); letter-spacing: .05em; line-height: 1.6; }
+.nav-links { display: flex; gap: 1.5rem; }
+.nav-links a { font-size: .8rem; font-weight: 700; color: var(--muted); text-decoration: none; transition: color .2s; }
+.nav-links a:hover { color: var(--yellow); }
+.level-badge { background: var(--purple); color: #fff; border-radius: 4px; font-family: var(--pixel); font-size: .5rem; padding: .3rem .5rem; }
+
+.hero {
+  margin-top: 2rem;
+  background: var(--card); border: 2px solid var(--border); border-radius: 16px;
+  padding: 2rem; display: grid; grid-template-columns: auto 1fr; gap: 2rem;
+  position: relative; overflow: hidden;
+}
+.hero::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, var(--purple), var(--blue), var(--green), var(--yellow));
+}
+.avatar-frame {
+  width: 140px; height: 140px; background: var(--surface);
+  border: 2px solid var(--border); border-radius: 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: relative; flex-shrink: 0;
+}
+.sprite { font-size: 56px; animation: float 3s ease-in-out infinite; user-select: none; line-height: 1; }
+.avatar-class { font-family: var(--pixel); font-size: .35rem; color: var(--purple-light); margin-top: .5rem; text-align: center; line-height: 1.8; }
+.avatar-lv {
+  position: absolute; top: -10px; right: -10px;
+  background: var(--yellow); color: #000;
+  font-family: var(--pixel); font-size: .45rem;
+  padding: .25rem .4rem; border-radius: 6px; border: 2px solid #fff;
+}
+.hero-info { display: flex; flex-direction: column; gap: 1rem; }
+.hero-name { font-family: var(--pixel); font-size: 1rem; color: #fff; line-height: 1.6; }
+.hero-title { font-size: .9rem; font-weight: 700; color: var(--purple-light); margin-top: -.4rem; }
+.hero-loc { font-size: .8rem; color: var(--muted); margin-top: -.5rem; }
+
+.xp-section { display: flex; flex-direction: column; gap: .4rem; }
+.xp-label { display: flex; justify-content: space-between; font-family: var(--pixel); font-size: .4rem; color: var(--muted); }
+.xp-bar { height: 14px; background: var(--surface); border-radius: 7px; border: 1px solid var(--border); overflow: hidden; }
+.xp-fill { height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--purple), var(--blue)); width: 0; transition: width 1.5s cubic-bezier(.22,.61,.36,1); }
+
+.hero-stats-row { display: flex; gap: .75rem; flex-wrap: wrap; }
+.mini-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .5rem .8rem; text-align: center; min-width: 70px; }
+.mini-stat-val { font-family: var(--pixel); font-size: .6rem; color: var(--yellow); display: block; }
+.mini-stat-key { font-size: .7rem; color: var(--muted); font-weight: 700; margin-top: .3rem; display: block; }
+
+.hero-links { display: flex; gap: .6rem; flex-wrap: wrap; }
+.chip { display: flex; align-items: center; gap: .4rem; font-size: .75rem; font-weight: 700; padding: .4rem .9rem; border-radius: 8px; text-decoration: none; border: 1.5px solid transparent; transition: all .2s; }
+.chip-yellow { background: var(--yellow); color: #000; }
+.chip-yellow:hover { background: #ffe566; }
+.chip-outline { border-color: var(--border); color: var(--muted); background: transparent; }
+.chip-outline:hover { border-color: var(--purple-light); color: var(--purple-light); }
+
+.section-hd { display: flex; align-items: center; gap: .75rem; margin: 3rem 0 1.25rem; }
+.section-icon { font-size: 1.2rem; }
+.section-ttl { font-family: var(--pixel); font-size: .65rem; color: #fff; }
+.section-line { flex: 1; height: 1px; background: var(--border); }
+.section-badge { font-family: var(--pixel); font-size: .4rem; padding: .25rem .5rem; border-radius: 4px; white-space: nowrap; }
+.badge-purple { background: rgba(139,92,246,.2); color: var(--purple-light); border: 1px solid rgba(139,92,246,.4); }
+.badge-blue { background: rgba(56,189,248,.15); color: var(--blue); border: 1px solid rgba(56,189,248,.3); }
+.badge-green { background: rgba(34,197,94,.15); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+.badge-yellow { background: rgba(255,210,63,.15); color: var(--yellow); border: 1px solid rgba(255,210,63,.3); }
+
+.quest-card {
+  background: var(--card); border: 1.5px solid var(--border); border-radius: 14px; padding: 1.5rem;
+  margin-bottom: 1rem; transition: border-color .2s, transform .2s; position: relative; overflow: hidden;
+}
+.quest-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 14px 0 0 14px; }
+.quest-card.amazon::before { background: linear-gradient(180deg, var(--orange), var(--yellow)); }
+.quest-card.clouddef::before { background: linear-gradient(180deg, var(--blue), var(--purple)); }
+.quest-card.vendorcentral::before { background: linear-gradient(180deg, var(--yellow), var(--green)); }
+.quest-card:hover { border-color: var(--purple); transform: translateY(-2px); }
+
+.quest-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
+.quest-company { font-family: var(--pixel); font-size: .55rem; color: #fff; }
+.quest-role { font-size: .85rem; font-weight: 800; color: var(--purple-light); margin-top: .35rem; }
+.quest-meta { display: flex; flex-direction: column; align-items: flex-end; gap: .35rem; }
+.quest-period { font-family: var(--pixel); font-size: .38rem; padding: .25rem .5rem; border-radius: 6px; background: var(--surface); color: var(--green); border: 1px solid var(--border); white-space: nowrap; }
+.quest-loc { font-size: .75rem; color: var(--muted); font-weight: 600; }
+
+.achievements { list-style: none; display: flex; flex-direction: column; gap: .6rem; }
+.achievements li { display: flex; align-items: flex-start; gap: .75rem; font-size: .9rem; color: var(--muted); line-height: 1.5; font-weight: 600; }
+.ach-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+.ach-text em { color: var(--yellow); font-style: normal; font-weight: 800; }
+
+.quest-xp { margin-top: 1rem; display: flex; gap: .5rem; flex-wrap: wrap; }
+.xp-pill { font-family: var(--pixel); font-size: .35rem; padding: .25rem .5rem; border-radius: 20px; background: rgba(255,210,63,.1); color: var(--yellow); border: 1px solid rgba(255,210,63,.3); }
+
+.skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+.skill-node { background: var(--card); border: 1.5px solid var(--border); border-radius: 14px; padding: 1.25rem; transition: border-color .2s, transform .2s; }
+.skill-node:hover { border-color: var(--purple-light); transform: translateY(-2px); }
+.skill-node-header { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+.skill-icon { font-size: 1.4rem; }
+.skill-name { font-size: .8rem; font-weight: 800; color: #fff; }
+.skill-bar-wrap { display: flex; flex-direction: column; gap: .5rem; }
+.skill-item { display: flex; flex-direction: column; gap: .25rem; }
+.skill-item-header { display: flex; justify-content: space-between; align-items: center; }
+.skill-item-name { font-size: .75rem; font-weight: 700; color: var(--text); }
+.skill-item-lvl { font-family: var(--pixel); font-size: .35rem; color: var(--muted); }
+.skill-bar { height: 6px; background: var(--surface); border-radius: 3px; overflow: hidden; border: 1px solid var(--border); }
+.skill-fill { height: 100%; border-radius: 3px; width: 0; transition: width 1.4s cubic-bezier(.22,.61,.36,1); }
+.fill-blue { background: var(--blue); }
+.fill-purple { background: var(--purple-light); }
+.fill-green { background: var(--green); }
+.fill-yellow { background: var(--yellow); }
+.fill-pink { background: var(--pink); }
+.fill-orange { background: var(--orange); }
+
+.edu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.edu-card { background: var(--card); border: 1.5px solid var(--border); border-radius: 14px; padding: 1.5rem; display: flex; flex-direction: column; gap: .5rem; transition: border-color .2s, transform .2s; }
+.edu-card:hover { border-color: var(--yellow); transform: translateY(-2px); }
+.edu-icon { font-size: 2rem; margin-bottom: .25rem; }
+.edu-degree { font-family: var(--pixel); font-size: .45rem; color: var(--yellow); line-height: 1.8; }
+.edu-school { font-size: .9rem; font-weight: 800; color: #fff; }
+.edu-info { font-size: .8rem; font-weight: 600; color: var(--muted); }
+.trophy-badge { font-family: var(--pixel); font-size: .35rem; padding: .2rem .45rem; border-radius: 4px; background: rgba(255,210,63,.15); color: var(--yellow); border: 1px solid rgba(255,210,63,.3); }
+.edu-trophy { display: flex; align-items: center; gap: .4rem; margin-top: .5rem; flex-wrap: wrap; }
+
+#contact { text-align: center; margin-top: 1rem; }
+.contact-grid { display: flex; flex-wrap: wrap; gap: .75rem; justify-content: center; margin-top: 1.5rem; }
+.contact-btn { display: flex; align-items: center; gap: .5rem; font-size: .85rem; font-weight: 700; padding: .7rem 1.4rem; border-radius: 10px; text-decoration: none; background: var(--card); border: 1.5px solid var(--border); color: var(--text); transition: all .2s; }
+.contact-btn:hover { border-color: var(--purple-light); color: var(--purple-light); transform: translateY(-2px); }
+
+footer { text-align: center; padding: 2rem 0 1rem; font-family: var(--pixel); font-size: .4rem; color: var(--border); letter-spacing: .08em; line-height: 2; }
+
+.toast-wrap { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 999; display: flex; flex-direction: column; gap: .5rem; }
+.toast { display: flex; align-items: center; gap: .75rem; background: var(--card); border: 1.5px solid var(--yellow); border-radius: 12px; padding: .75rem 1.1rem; min-width: 260px; transform: translateX(120%); opacity: 0; transition: transform .4s cubic-bezier(.22,.61,.36,1), opacity .4s; box-shadow: 0 4px 24px rgba(0,0,0,.4); }
+.toast.show { transform: translateX(0); opacity: 1; }
+.toast-icon { font-size: 1.4rem; }
+.toast-title { font-family: var(--pixel); font-size: .45rem; color: var(--yellow); }
+.toast-msg { font-size: .75rem; font-weight: 700; color: var(--text); }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--purple); border-radius: 3px; }
+
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+.reveal { opacity: 0; transform: translateY(20px); transition: opacity .6s, transform .6s; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+
+@media (max-width: 640px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero-name { font-size: .75rem; }
+  .nav-links { display: none; }
+  .skill-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<nav>
+  <div class="nav-logo">BSS.EXE<br>▓▓▓▓▓░░ LVL 25</div>
+  <div class="nav-links">
+    <a href="#quests">Quest Log</a>
+    <a href="#skills">Skill Tree</a>
+    <a href="#dungeons">Dungeons</a>
+    <a href="#contact">Message</a>
+  </div>
+  <div class="level-badge">LVL 25</div>
+</nav>
+
+<div class="wrap">
+
+<!-- HERO -->
+<div class="hero reveal" id="hero">
+  <div class="avatar-frame">
+    <div class="avatar-lv">LV 25</div>
+    <div class="sprite">🧙‍♂️</div>
+    <div class="avatar-class">CLOUD MAGE<br>ARCHITECT</div>
+  </div>
+  <div class="hero-info">
+    <div>
+      <div class="hero-name">BHESHAJ<br>SINGH SHEKHAWAT</div>
+      <div class="hero-title">Software Development Engineer ⚡</div>
+      <div class="hero-loc">📍 Bengaluru, Karnataka · AWS Realm</div>
+    </div>
+    <div class="xp-section">
+      <div class="xp-label"><span>CAREER XP</span><span id="xp-count">0 / 9,000 XP</span></div>
+      <div class="xp-bar"><div class="xp-fill" id="xp-fill" data-width="82"></div></div>
+      <div class="xp-label"><span>REPUTATION</span><span>████████░░ LEGENDARY</span></div>
+      <div class="xp-bar"><div class="xp-fill" id="rep-fill" data-width="78" style="background:linear-gradient(90deg,var(--green),var(--yellow));"></div></div>
+    </div>
+    <div class="hero-stats-row">
+      <div class="mini-stat"><span class="mini-stat-val" data-count="4">0</span><span class="mini-stat-key">YRS EXP</span></div>
+      <div class="mini-stat"><span class="mini-stat-val" data-count="3">0</span><span class="mini-stat-key">GUILDS</span></div>
+      <div class="mini-stat"><span class="mini-stat-val" id="device-count">0</span><span class="mini-stat-key">DEVICES 🎯</span></div>
+      <div class="mini-stat"><span class="mini-stat-val">30%</span><span class="mini-stat-key">DEPLOY ↓</span></div>
+      <div class="mini-stat"><span class="mini-stat-val">25%</span><span class="mini-stat-key">RELIABILITY ↑</span></div>
+    </div>
+    <div class="hero-links">
+      <a class="chip chip-yellow" href="mailto:bsshekhawat333@gmail.com">✉ Send Message</a>
+      <a class="chip chip-outline" href="https://www.linkedin.com/in/bheshajsingh/" target="_blank">🔗 LinkedIn</a>
+      <a class="chip chip-outline" href="tel:+917732988290">📞 +91 77329 88290</a>
+    </div>
+  </div>
+</div>
+
+<!-- QUEST LOG -->
+<div class="section-hd reveal" id="quests">
+  <span class="section-icon">📜</span>
+  <span class="section-ttl">QUEST LOG</span>
+  <div class="section-line"></div>
+  <span class="section-badge badge-purple">3 COMPLETED</span>
+</div>
+
+<div class="quest-card amazon reveal">
+  <div class="quest-header">
+    <div>
+      <div class="quest-company">⚡ AMAZON — AMAZON MUSIC</div>
+      <div class="quest-role">Software Development Engineer</div>
+    </div>
+    <div class="quest-meta">
+      <div class="quest-period">OCT 2023 – NOV 2025</div>
+      <div class="quest-loc">📍 Bengaluru</div>
+    </div>
+  </div>
+  <ul class="achievements">
+    <li><span class="ach-icon">⚙️</span><span class="ach-text">Migrated retail marketplace configs to Amazon Config Store, reducing configuration overhead by <em>30%</em> — massive scalability buff unlocked.</span></li>
+    <li><span class="ach-icon">🔐</span><span class="ach-text">Led migration from ALF locks to DynamoDB Lock Client, closing critical security gaps and boosting reliability by <em>25%</em>.</span></li>
+    <li><span class="ach-icon">📱</span><span class="ach-text">Designed new Device Type IDs enabling feature gating for over <em>1 million emerging devices</em> — one of the biggest impact quests!</span></li>
+    <li><span class="ach-icon">📧</span><span class="ach-text">Upgraded AutoRip email templates Sonar V1 → V2, boosting email engagement by <em>15%</em>.</span></li>
+  </ul>
+  <div class="quest-xp">
+    <span class="xp-pill">+2000 XP</span>
+    <span class="xp-pill">ACHIEVEMENT: 1M DEVICES</span>
+    <span class="xp-pill">LOOT: AWS MASTERY</span>
+  </div>
+</div>
+
+<div class="quest-card clouddef reveal">
+  <div class="quest-header">
+    <div>
+      <div class="quest-company">🛡 CLOUDDEFENSE</div>
+      <div class="quest-role">Software Engineer</div>
+    </div>
+    <div class="quest-meta">
+      <div class="quest-period">MAR 2023 – JUN 2023</div>
+      <div class="quest-loc">📍 Gurugram</div>
+    </div>
+  </div>
+  <ul class="achievements">
+    <li><span class="ach-icon">🔍</span><span class="ach-text">Implemented Kubernetes vulnerability scanning — <em>30% better</em> risk identification, enemies detected earlier.</span></li>
+    <li><span class="ach-icon">🤖</span><span class="ach-text">Deployed reCAPTCHA defense, dropping unauthorized access by <em>20%</em> — bots defeated.</span></li>
+    <li><span class="ach-icon">📊</span><span class="ach-text">Built asset scoring system to prioritize critical issues by <em>25%</em> better — inventory management mastered.</span></li>
+    <li><span class="ach-icon">⚡</span><span class="ach-text">Optimized API calls and S3/CloudTrail scan checks, boosting system latency performance significantly.</span></li>
+  </ul>
+  <div class="quest-xp">
+    <span class="xp-pill">+1200 XP</span>
+    <span class="xp-pill">ACHIEVEMENT: BOT SLAYER</span>
+    <span class="xp-pill">LOOT: KUBERNETES RUNE</span>
+  </div>
+</div>
+
+<div class="quest-card vendorcentral reveal">
+  <div class="quest-header">
+    <div>
+      <div class="quest-company">🛒 AMAZON — VENDOR CENTRAL</div>
+      <div class="quest-role">Software Development Engineer</div>
+    </div>
+    <div class="quest-meta">
+      <div class="quest-period">JUN 2022 – MAR 2023</div>
+      <div class="quest-loc">📍 Bengaluru</div>
+    </div>
+  </div>
+  <ul class="achievements">
+    <li><span class="ach-icon">🚀</span><span class="ach-text">Solo-migrated CI/CD pipeline from legacy tool to AWS-CDK — deployment time cut by <em>30%</em>, reliability up <em>20%</em>.</span></li>
+    <li><span class="ach-icon">🎨</span><span class="ach-text">Built end-to-end UI components: page load <em>25% faster</em>, user engagement up <em>15%</em> for third-party sellers.</span></li>
+    <li><span class="ach-icon">🔗</span><span class="ach-text">Integrated rtk-query and redux-saga middleware; React cookie-caching cut data retrieval time by <em>20%</em>.</span></li>
+    <li><span class="ach-icon">📡</span><span class="ach-text">Set up CloudWatch alarms and monitors across the application — <em>observability mode ACTIVATED</em>.</span></li>
+  </ul>
+  <div class="quest-xp">
+    <span class="xp-pill">+1500 XP</span>
+    <span class="xp-pill">ACHIEVEMENT: PIPELINE ARCHITECT</span>
+    <span class="xp-pill">LOOT: CDK SCROLL</span>
+  </div>
+</div>
+
+<!-- SKILL TREE -->
+<div class="section-hd reveal" id="skills">
+  <span class="section-icon">🌳</span>
+  <span class="section-ttl">SKILL TREE</span>
+  <div class="section-line"></div>
+  <span class="section-badge badge-blue">20 SKILLS UNLOCKED</span>
+</div>
+
+<div class="skill-grid">
+  <div class="skill-node reveal">
+    <div class="skill-node-header"><span class="skill-icon">☕</span><span class="skill-name">Languages</span></div>
+    <div class="skill-bar-wrap">
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">Java</span><span class="skill-item-lvl">LV 90</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-orange" data-w="90"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">JavaScript</span><span class="skill-item-lvl">LV 80</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-yellow" data-w="80"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="skill-node reveal">
+    <div class="skill-node-header"><span class="skill-icon">⚡</span><span class="skill-name">Backend</span></div>
+    <div class="skill-bar-wrap">
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">Spring Boot</span><span class="skill-item-lvl">LV 88</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-green" data-w="88"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">Microservices</span><span class="skill-item-lvl">LV 85</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-green" data-w="85"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">REST APIs</span><span class="skill-item-lvl">LV 92</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-green" data-w="92"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="skill-node reveal">
+    <div class="skill-node-header"><span class="skill-icon">☁️</span><span class="skill-name">AWS Cloud</span></div>
+    <div class="skill-bar-wrap">
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">Lambda / DynamoDB</span><span class="skill-item-lvl">LV 87</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-blue" data-w="87"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">S3 / CloudWatch</span><span class="skill-item-lvl">LV 85</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-blue" data-w="85"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">AWS CDK / IAM</span><span class="skill-item-lvl">LV 82</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-blue" data-w="82"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="skill-node reveal">
+    <div class="skill-node-header"><span class="skill-icon">🐳</span><span class="skill-name">DevOps</span></div>
+    <div class="skill-bar-wrap">
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">Docker</span><span class="skill-item-lvl">LV 80</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-blue" data-w="80"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">Kubernetes</span><span class="skill-item-lvl">LV 75</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-blue" data-w="75"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">CI/CD</span><span class="skill-item-lvl">LV 88</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-purple" data-w="88"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="skill-node reveal">
+    <div class="skill-node-header"><span class="skill-icon">🗄️</span><span class="skill-name">Databases</span></div>
+    <div class="skill-bar-wrap">
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">PostgreSQL</span><span class="skill-item-lvl">LV 80</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-purple" data-w="80"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">Redis</span><span class="skill-item-lvl">LV 78</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-pink" data-w="78"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">MySQL</span><span class="skill-item-lvl">LV 82</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-purple" data-w="82"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="skill-node reveal">
+    <div class="skill-node-header"><span class="skill-icon">⚛️</span><span class="skill-name">Frontend</span></div>
+    <div class="skill-bar-wrap">
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">ReactJS</span><span class="skill-item-lvl">LV 83</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-blue" data-w="83"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">Redux / RTK Query</span><span class="skill-item-lvl">LV 78</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-purple" data-w="78"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="skill-node reveal">
+    <div class="skill-node-header"><span class="skill-icon">🏗️</span><span class="skill-name">Architecture</span></div>
+    <div class="skill-bar-wrap">
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">System Design</span><span class="skill-item-lvl">LV 85</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-orange" data-w="85"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">Distributed Systems</span><span class="skill-item-lvl">LV 84</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-orange" data-w="84"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">DSA</span><span class="skill-item-lvl">LV 80</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-orange" data-w="80"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="skill-node reveal">
+    <div class="skill-node-header"><span class="skill-icon">🧪</span><span class="skill-name">Testing</span></div>
+    <div class="skill-bar-wrap">
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">JUnit</span><span class="skill-item-lvl">LV 78</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-green" data-w="78"></div></div>
+      </div>
+      <div class="skill-item">
+        <div class="skill-item-header"><span class="skill-item-name">Hibernate / JPA</span><span class="skill-item-lvl">LV 80</span></div>
+        <div class="skill-bar"><div class="skill-fill fill-green" data-w="80"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DUNGEONS CLEARED -->
+<div class="section-hd reveal" id="dungeons">
+  <span class="section-icon">🏰</span>
+  <span class="section-ttl">DUNGEONS CLEARED</span>
+  <div class="section-line"></div>
+  <span class="section-badge badge-yellow">2 CLEARED</span>
+</div>
+
+<div class="edu-grid">
+  <div class="edu-card reveal">
+    <div class="edu-icon">🎓</div>
+    <div class="edu-degree">B.TECH · COMPUTER SCIENCE</div>
+    <div class="edu-school">Amity University Rajasthan</div>
+    <div class="edu-info">📍 Jaipur · 2018 – 2022</div>
+    <div class="edu-trophy">
+      <span class="trophy-badge">🏆 DUNGEON CLEARED</span>
+      <span class="trophy-badge">+5000 BASE XP</span>
+    </div>
+  </div>
+  <div class="edu-card reveal">
+    <div class="edu-icon">📚</div>
+    <div class="edu-degree">INTERMEDIATE · CBSE</div>
+    <div class="edu-school">The Rajasthan International School</div>
+    <div class="edu-info">📍 Kotputli · 2016 – 2018</div>
+    <div class="edu-trophy">
+      <span class="trophy-badge">🏆 DUNGEON CLEARED</span>
+      <span class="trophy-badge">+2000 BASE XP</span>
+    </div>
+  </div>
+</div>
+
+<!-- CONTACT -->
+<div class="section-hd reveal" id="contact">
+  <span class="section-icon">💬</span>
+  <span class="section-ttl">SEND A MESSAGE</span>
+  <div class="section-line"></div>
+  <span class="section-badge badge-green">ONLINE NOW</span>
+</div>
+
+<div class="contact-grid reveal">
+  <a class="contact-btn" href="mailto:bsshekhawat333@gmail.com"><span>✉️</span> bsshekhawat333@gmail.com</a>
+  <a class="contact-btn" href="https://www.linkedin.com/in/bheshajsingh/" target="_blank"><span>🔗</span> linkedin.com/in/bheshajsingh</a>
+  <a class="contact-btn" href="tel:+917732988290"><span>📞</span> +91 77329 88290</a>
+</div>
+
+<footer>
+  © 3026 AD · BHESHAJ SINGH SHEKHAWAT · ALL QUESTS IN PROGRESS · PRESS START TO COLLABORATE
+</footer>
+
+</div>
+
+<script>
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: .08, rootMargin: '0px 0px -30px 0px' });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+const xpObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    const el = e.target;
+    const w = el.dataset.width || el.dataset.w;
+    if (w) setTimeout(() => el.style.width = w + '%', 200);
+    xpObs.unobserve(el);
+  });
+}, { threshold: .2 });
+document.querySelectorAll('.xp-fill, .skill-fill').forEach(el => xpObs.observe(el));
+
+function animCount(el, target, dur, suffix) {
+  dur = dur || 1400; suffix = suffix || '';
+  const start = performance.now();
+  const isLarge = target >= 1000;
+  function frame(now) {
+    const t = Math.min((now - start) / dur, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const val = Math.round(ease * target);
+    el.textContent = isLarge ? val.toLocaleString() + suffix : val + suffix;
+    if (t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+let counted = false;
+const heroObs = new IntersectionObserver(entries => {
+  if (entries[0].isIntersecting && !counted) {
+    counted = true;
+    document.querySelectorAll('[data-count]').forEach(el => animCount(el, +el.dataset.count));
+    animCount(document.getElementById('device-count'), 1000000, 2000, 'M+');
+    let xp = 0;
+    const xpEl = document.getElementById('xp-count');
+    const iv = setInterval(() => {
+      xp = Math.min(xp + 90, 7380);
+      xpEl.textContent = xp.toLocaleString() + ' / 9,000 XP';
+      if (xp >= 7380) clearInterval(iv);
+    }, 16);
+  }
+}, { threshold: .3 });
+heroObs.observe(document.getElementById('hero'));
+
+const toasts = [
+  { icon: '🏆', title: 'ACHIEVEMENT UNLOCKED', msg: '1 Million Devices Configured!' },
+  { icon: '⚡', title: 'SPEED RUN COMPLETE', msg: 'Deploy time cut by 30%!' },
+  { icon: '🛡️', title: 'DEFENDER BADGE', msg: 'Security gaps closed at Amazon!' },
+];
+const toastWrap = document.getElementById('toasts');
+let tIdx = 0;
+function showToast() {
+  if (tIdx >= toasts.length) return;
+  const t = toasts[tIdx++];
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = '<span class="toast-icon">' + t.icon + '</span><div><div class="toast-title">' + t.title + '</div><div class="toast-msg">' + t.msg + '</div></div>';
+  toastWrap.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => { el.remove(); setTimeout(showToast, 800); }, 500);
+  }, 3500);
+}
+setTimeout(showToast, 2000);
+</script>
+</body>
+</html>
