@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bheshaj Singh — LVL 25 Cloud Mage</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Bangers&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#04030c;font-family:'Nunito',sans-serif;cursor:none}
+
+/* CANVAS fills everything */
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+
+/* 3D DIM OVERLAY — makes 3D a background, not the star */
+#canvas-dim{position:fixed;inset:0;z-index:2;background:rgba(4,3,12,.54);pointer-events:none}
+
+/* CUSTOM CURSOR */
+#cur{position:fixed;top:0;left:0;z-index:9999;pointer-events:none}
+.cd{position:absolute;width:8px;height:8px;border-radius:50%;background:#ffd23f;transform:translate(-50%,-50%);box-shadow:0 0 10px #ffd23f,0 0 22px rgba(255,210,63,.5)}
+.cr{position:absolute;width:30px;height:30px;border-radius:50%;border:2px solid rgba(139,92,246,.8);transform:translate(-50%,-50%);transition:width .12s,height .12s,opacity .12s}
+
+/* NAV (always on top) */
+#nav{
+  position:fixed;top:0;left:0;right:0;z-index:500;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.7rem 1.8rem;
+  background:rgba(4,3,12,.75);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid rgba(139,92,246,.2);
+  pointer-events:auto;
+}
+.nlogo{font-family:'Press Start 2P',monospace;font-size:.48rem;color:#ffd23f;line-height:1.9;text-shadow:0 0 12px rgba(255,210,63,.5)}
+.nlinks{display:flex;gap:1.25rem}
+.nlinks button{
+  font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:800;
+  color:rgba(180,170,255,.6);background:none;border:none;cursor:none;
+  padding:.3rem .6rem;border-radius:6px;
+  transition:color .2s,background .2s;
+}
+.nlinks button:hover,.nlinks button.active{color:#ffd23f;background:rgba(255,210,63,.08)}
+.nlv{font-family:'Press Start 2P',monospace;font-size:.42rem;padding:.28rem .6rem;border-radius:6px;background:#8b5cf6;color:#fff;animation:badge-glow 2s ease-in-out infinite}
+
+/* SECTION INDICATOR */
+#section-label{
+  position:fixed;top:50%;right:1.5rem;transform:translateY(-50%);
+  z-index:500;display:flex;flex-direction:column;gap:.6rem;pointer-events:auto;
+}
+.dot-nav{
+  width:10px;height:10px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.25);
+  background:transparent;cursor:none;
+  transition:all .3s;
+}
+.dot-nav.active{background:#ffd23f;border-color:#ffd23f;box-shadow:0 0 10px #ffd23f}
+
+/* HUD PANEL — now a prominent centered card */
+#hud{
+  position:fixed;z-index:400;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:min(820px,92vw);
+  max-height:88vh;
+  overflow-y:auto;
+  scrollbar-width:none;
+  background:rgba(6,5,20,.90);
+  backdrop-filter:blur(28px);
+  -webkit-backdrop-filter:blur(28px);
+  border:1.5px solid rgba(139,92,246,.35);
+  border-radius:22px;
+  padding:2.2rem 2.6rem;
+  box-shadow:0 0 0 1px rgba(139,92,246,.08), 0 24px 64px rgba(0,0,0,.7), 0 0 80px rgba(139,92,246,.08);
+  pointer-events:auto;
+  transition:opacity .5s, transform .5s;
+}
+#hud::-webkit-scrollbar{display:none}
+#hud.hidden{opacity:0;transform:translate(-50%,-48%);pointer-events:none}
+.hud-tag{font-family:'Nunito',sans-serif;font-size:.78rem;font-weight:900;color:#a78bfa;letter-spacing:.14em;text-transform:uppercase;margin-bottom:.7rem;text-shadow:0 0 8px #a78bfa}
+.hud-name{font-family:'Bangers',cursive;font-size:clamp(2.6rem,7vw,5.5rem);color:#fff;line-height:.95;letter-spacing:.04em;text-shadow:0 0 40px rgba(139,92,246,.6),0 4px 0 rgba(0,0,0,.7);margin-bottom:.5rem}
+.hud-name span{color:#ffd23f;text-shadow:0 0 40px rgba(255,210,63,.7),0 4px 0 rgba(0,0,0,.7)}
+.hud-role{font-size:1.05rem;font-weight:800;color:#a78bfa;margin-bottom:.4rem;letter-spacing:.04em}
+.hud-loc{font-size:.88rem;font-weight:700;color:rgba(167,139,250,.7);margin-bottom:1.2rem}
+.xp-block{display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.2rem}
+.xp-row{display:flex;flex-direction:column;gap:.2rem}
+.xp-lbl{display:flex;justify-content:space-between;font-family:'Nunito',sans-serif;font-size:.78rem;font-weight:800;color:rgba(167,139,250,.75);letter-spacing:.04em}
+.xp-lbl span:last-child{color:#ffd23f}
+.xp-track{height:10px;background:rgba(255,255,255,.06);border-radius:5px;border:1px solid rgba(42,39,80,1);overflow:hidden}
+.xp-fill{height:100%;border-radius:5px;width:0;transition:width 1.6s cubic-bezier(.22,.61,.36,1);position:relative;overflow:hidden}
+.xp-fill::after{content:'';position:absolute;top:0;left:-100%;width:55%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);animation:shine 2.2s ease-in-out infinite}
+.xf1{background:linear-gradient(90deg,#8b5cf6,#38bdf8)}
+.xf2{background:linear-gradient(90deg,#22c55e,#ffd23f)}
+.xf3{background:linear-gradient(90deg,#fb923c,#ffd23f)}
+.stat-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.st{background:rgba(255,255,255,.05);border:1px solid rgba(42,39,80,1);border-radius:8px;padding:.5rem .9rem;text-align:center;transition:all .2s}
+.st:hover{border-color:#8b5cf6;box-shadow:0 4px 14px rgba(139,92,246,.2)}
+.sv{font-family:'Nunito',sans-serif;font-size:.9rem;font-weight:900;color:#ffd23f;display:block;text-shadow:0 0 8px rgba(255,210,63,.4)}
+.sk{font-size:.72rem;color:rgba(167,139,250,.7);font-weight:800;display:block;margin-top:.18rem;letter-spacing:.04em}
+.cta-row{display:flex;gap:.55rem;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:.4rem;font-size:.82rem;font-weight:800;padding:.52rem 1.1rem;border-radius:9px;text-decoration:none;transition:all .2s;cursor:none}
+.ch-y{background:#ffd23f;color:#000}.ch-y:hover{box-shadow:0 0 18px rgba(255,210,63,.6);transform:translateY(-2px)}
+.ch-o{border:2px solid rgba(42,39,80,1);color:rgba(167,139,250,.8);background:rgba(255,255,255,.03)}.ch-o:hover{border-color:#a78bfa;color:#a78bfa;transform:translateY(-2px)}
+
+/* PANEL HUDS for each zone */
+.zone-panel{
+  position:fixed;z-index:400;
+  top:5.4rem;left:50%;
+  transform:translateX(-50%);
+  background:rgba(6,5,20,.92);
+  backdrop-filter:blur(28px);
+  -webkit-backdrop-filter:blur(28px);
+  border:1.5px solid rgba(42,39,80,.95);
+  border-radius:22px;
+  padding:1.8rem 2.2rem;
+  pointer-events:auto;
+  transition:opacity .5s,transform .5s;
+  width:min(1100px,94vw);
+  max-height:calc(100vh - 6.5rem);
+  overflow-y:auto;
+  scrollbar-width:none;
+  box-shadow:0 0 0 1px rgba(139,92,246,.06), 0 24px 64px rgba(0,0,0,.7);
+}
+.zone-panel::-webkit-scrollbar{display:none}
+.zone-panel.hidden{opacity:0;transform:translateX(-50%) translateY(16px);pointer-events:none}
+
+/* QUEST PANEL */
+#panel-quest{width:min(1100px,94vw)}
+/* SKILLS PANEL */
+#panel-skills{width:min(1100px,94vw)}
+/* EDUCATION PANEL */
+#panel-edu{width:min(820px,94vw)}
+/* CONTACT PANEL */
+#panel-contact{top:50%;left:50%;transform:translate(-50%,-50%);width:min(500px,92vw);text-align:center;max-height:none;overflow-y:visible}
+#panel-contact.hidden{transform:translate(-50%,-46%) !important}
+
+.pz-title{font-family:'Bangers',cursive;font-size:clamp(2rem,4vw,2.8rem);color:#fff;letter-spacing:.05em;margin-bottom:1.4rem;text-shadow:0 0 20px rgba(255,255,255,.2)}
+.pz-subtitle{font-family:'Press Start 2P',monospace;font-size:.4rem;margin-bottom:.8rem;letter-spacing:.06em}
+
+/* Quest items — single column, descending order */
+.quest-grid{display:flex;flex-direction:column;gap:1rem}
+.qitem{border-left:3px solid;border-radius:0 12px 12px 0;padding:1.1rem 1.3rem;margin-bottom:0;background:rgba(255,255,255,.04);cursor:none;transition:background .2s}
+.qitem:hover{background:rgba(255,255,255,.07)}
+.qi-co{font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.3rem}
+.qi-role{font-family:'Bangers',cursive;font-size:1.6rem;letter-spacing:.04em;color:#a78bfa;margin-bottom:.2rem}
+.qi-period{font-family:'Nunito',sans-serif;font-size:.78rem;font-weight:800;color:#22c55e;letter-spacing:.03em;margin-bottom:.6rem}
+.qi-bullets{list-style:none;display:flex;flex-direction:column;gap:.5rem}
+.qi-bullets li{display:flex;gap:.6rem;font-size:.86rem;font-weight:700;color:rgba(232,230,255,.82);line-height:1.65}
+.qi-bullets li::before{content:'▸';color:#ffd23f;flex-shrink:0}
+.qi-bullets li em{color:#ffd23f;font-style:normal;font-weight:900}
+.xp-pills{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.7rem}
+.pill{font-family:'Nunito',sans-serif;font-size:.72rem;font-weight:800;padding:.2rem .55rem;border-radius:14px;background:rgba(255,210,63,.08);color:#ffd23f;border:1px solid rgba(255,210,63,.22)}
+
+/* Skill nodes in panel */
+.sk-list{display:flex;flex-direction:column;gap:.5rem}
+.sk-item-p{display:flex;flex-direction:column;gap:.24rem}
+.sk-ih{display:flex;justify-content:space-between;align-items:baseline}
+.sk-nm{font-size:.88rem;font-weight:800;color:#e8e6ff}
+.sk-lv{font-family:'Nunito',sans-serif;font-size:.72rem;font-weight:800;color:rgba(167,139,250,.8);letter-spacing:.04em}
+.sk-track{height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;border:1px solid rgba(42,39,80,1)}
+.sk-fill{height:100%;border-radius:4px;width:0;transition:width 1.5s cubic-bezier(.22,.61,.36,1);position:relative;overflow:hidden}
+.sk-fill::after{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.38),transparent);animation:shine 2.5s ease-in-out infinite}
+.sf-b{background:linear-gradient(90deg,#1e67e8,#38bdf8)}.sf-p{background:linear-gradient(90deg,#6d28d9,#a78bfa)}.sf-g{background:linear-gradient(90deg,#15803d,#22c55e)}.sf-y{background:linear-gradient(90deg,#b45309,#ffd23f)}.sf-pk{background:linear-gradient(90deg,#be185d,#f472b6)}.sf-o{background:linear-gradient(90deg,#c2410c,#fb923c)}
+.sk-cat{font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:900;color:#a78bfa;margin:1rem 0 .5rem;letter-spacing:.14em;text-transform:uppercase;padding-bottom:.35rem;border-bottom:1px solid rgba(139,92,246,.18)}
+
+/* Skill items 3-col grid on desktop */
+.sk-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem .9rem}
+
+/* Education cards */
+.edu-item{background:rgba(255,255,255,.04);border:1px solid rgba(42,39,80,.9);border-radius:14px;padding:1.4rem 1.8rem;margin-bottom:1rem;transition:border-color .2s}
+.edu-item:hover{border-color:rgba(255,210,63,.4)}
+.edu-ico{font-size:2.2rem;margin-bottom:.6rem}
+.edu-deg{font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:900;color:#ffd23f;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.3rem}
+.edu-school{font-family:'Bangers',cursive;font-size:1.9rem;color:#fff;letter-spacing:.03em}
+.edu-info{font-size:.88rem;font-weight:700;color:rgba(167,139,250,.9);margin:.3rem 0 .6rem;line-height:1.6}
+.tph{font-family:'Nunito',sans-serif;font-size:.72rem;font-weight:800;padding:.22rem .55rem;border-radius:6px;background:rgba(255,210,63,.1);color:#ffd23f;border:1px solid rgba(255,210,63,.2);display:inline-block;margin:.2rem .2rem 0 0}
+
+/* Contact panel */
+.con-links{display:flex;flex-direction:column;gap:.7rem;margin-top:1rem}
+.con-a{display:flex;align-items:center;gap:.8rem;font-size:.95rem;font-weight:800;padding:.85rem 1.4rem;border-radius:12px;text-decoration:none;background:rgba(255,255,255,.05);border:1.5px solid rgba(42,39,80,.9);color:#e8e6ff;transition:all .22s;cursor:none}
+.con-a:hover{border-color:#a78bfa;color:#a78bfa;transform:translateY(-2px);box-shadow:0 6px 20px rgba(139,92,246,.2)}
+
+/* ZONE NAME popup */
+#zone-name{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-family:'Bangers',cursive;font-size:clamp(2rem,6vw,4rem);
+  color:#fff;letter-spacing:.1em;
+  text-shadow:0 0 40px rgba(139,92,246,.8),0 0 80px rgba(139,92,246,.4);
+  z-index:600;pointer-events:none;
+  opacity:0;transition:opacity .4s;
+  text-align:center;line-height:1.2;
+}
+
+/* SCROLL HINT */
+#scroll-hint{
+  position:fixed;bottom:1.4rem;left:50%;transform:translateX(-50%);
+  font-family:'Press Start 2P',monospace;font-size:.35rem;
+  color:rgba(110,107,154,.7);z-index:500;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:.3rem;
+  animation:bounce 2.2s ease-in-out infinite;
+}
+
+/* TOAST */
+#twrap{position:fixed;bottom:1.4rem;right:1.4rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;pointer-events:none}
+.toast{display:flex;align-items:center;gap:.7rem;background:rgba(26,24,53,.95);border:1.5px solid #ffd23f;border-radius:12px;padding:.7rem 1.1rem;min-width:255px;transform:translateX(110%);opacity:0;transition:transform .4s cubic-bezier(.22,.61,.36,1),opacity .4s;box-shadow:0 4px 26px rgba(0,0,0,.5),0 0 14px rgba(255,210,63,.1)}
+.toast.show{transform:translateX(0);opacity:1}
+.ti{font-size:1.35rem}.tt{font-family:'Nunito',sans-serif;font-size:.75rem;font-weight:900;color:#ffd23f;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.15rem}.tm{font-size:.82rem;font-weight:700;color:#e8e6ff}
+
+@keyframes badge-glow{0%,100%{box-shadow:0 0 8px #8b5cf6}50%{box-shadow:0 0 20px #8b5cf6,0 0 40px rgba(139,92,246,.3)}}
+@keyframes shine{0%{left:-100%}60%,100%{left:150%}}
+@keyframes bounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-5px)}}
+@keyframes confetti-fall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+@keyframes fade-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+@media(max-width:768px){
+  .sk-grid{grid-template-columns:1fr 1fr !important}
+}
+@media(max-width:600px){
+  .nlinks{display:none}
+  #hud{padding:1.4rem 1.2rem;width:94vw}
+  #hud>div:first-child{grid-template-columns:1fr !important}
+  .hud-name{font-size:2.2rem}
+  .zone-panel{
+    top:4.5rem !important;
+    width:96vw !important;
+    padding:1.2rem 1rem;
+    max-height:calc(100vh - 5.2rem) !important;
+    overflow-y:auto !important;
+    scrollbar-width:thin;
+    scrollbar-color:#8b5cf6 transparent;
+  }
+  .zone-panel::-webkit-scrollbar{display:block;width:3px}
+  .zone-panel::-webkit-scrollbar-thumb{background:#8b5cf6;border-radius:2px}
+  #section-label{display:none}
+  .sk-grid{grid-template-columns:1fr !important}
+}
+</style>
+</head>
+<body>
+
+<!-- CURSOR -->
+<div id="cur"><div class="cd" id="cdot"></div><div class="cr" id="cring"></div></div>
+
+<!-- 3D CANVAS -->
+<canvas id="c"></canvas>
+<!-- DIM OVERLAY — keeps 3D as background -->
+<div id="canvas-dim"></div>
+
+<!-- NAV -->
+<div id="nav">
+  <div class="nlogo">BSS.EXE<br>▓▓▓▓▓░ LVL 25</div>
+  <div class="nlinks">
+    <button onclick="flyTo(0)" id="nb0">🏠 Home</button>
+    <button onclick="flyTo(1)" id="nb1">📜 Quests</button>
+    <button onclick="flyTo(2)" id="nb2">🌳 Skills</button>
+    <button onclick="flyTo(3)" id="nb3">🏰 Dungeons</button>
+    <button onclick="flyTo(4)" id="nb4">💬 Contact</button>
+  </div>
+  <div class="nlv">⚡ LV 25</div>
+</div>
+
+<!-- DOT NAV -->
+<div id="section-label">
+  <div class="dot-nav active" onclick="flyTo(0)" title="Home"></div>
+  <div class="dot-nav" onclick="flyTo(1)" title="Quests"></div>
+  <div class="dot-nav" onclick="flyTo(2)" title="Skills"></div>
+  <div class="dot-nav" onclick="flyTo(3)" title="Dungeons"></div>
+  <div class="dot-nav" onclick="flyTo(4)" title="Contact"></div>
+</div>
+
+<!-- ZONE NAME FLASH -->
+<div id="zone-name"></div>
+
+<!-- SCROLL HINT -->
+<div id="scroll-hint"><span style="font-size:1rem">↕</span>SCROLL OR CLICK TO EXPLORE</div>
+
+<!-- ═══ HUD: HERO ═══ -->
+<div id="hud">
+  <div style="display:grid;grid-template-columns:1fr auto;gap:1.4rem 2rem;align-items:start">
+    <!-- LEFT: Identity -->
+    <div>
+      <div class="hud-tag">// CLOUD MAGE · ARCHITECT · BENGALURU REALM</div>
+      <div class="hud-name"><span>BHESHAJ</span> SINGH<br>SHEKHAWAT</div>
+      <div class="hud-role">⚡ Software Development Engineer</div>
+      <div class="hud-loc">📍 Amazon · CloudDefense · Bengaluru, India</div>
+    </div>
+    <!-- RIGHT: Level badge -->
+    <div style="text-align:right;padding-top:.3rem">
+      <div style="font-family:'Press Start 2P',monospace;font-size:.36rem;color:#a78bfa;line-height:2">LVL</div>
+      <div style="font-family:'Bangers',cursive;font-size:3.2rem;color:#ffd23f;line-height:1;text-shadow:0 0 30px rgba(255,210,63,.6)">25</div>
+      <div style="font-family:'Press Start 2P',monospace;font-size:.28rem;color:rgba(167,139,250,.6);margin-top:.2rem">CLOUD MAGE</div>
+    </div>
+  </div>
+
+  <!-- XP Bars -->
+  <div class="xp-block" style="margin-top:1.4rem">
+    <div class="xp-row">
+      <div class="xp-lbl"><span>CAREER XP</span><span id="xpc">0 / 9,000 XP</span></div>
+      <div class="xp-track"><div class="xp-fill xf1" data-w="82"></div></div>
+    </div>
+    <div class="xp-row">
+      <div class="xp-lbl"><span>REPUTATION</span><span>LEGENDARY ★★★★★</span></div>
+      <div class="xp-track"><div class="xp-fill xf2" data-w="79"></div></div>
+    </div>
+    <div class="xp-row">
+      <div class="xp-lbl"><span>IMPACT SCORE</span><span>S-RANK</span></div>
+      <div class="xp-track"><div class="xp-fill xf3" data-w="90"></div></div>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="stat-row">
+    <div class="st"><span class="sv" data-cnt="4">0</span><span class="sk">YRS EXP</span></div>
+    <div class="st"><span class="sv" data-cnt="3">0</span><span class="sk">GUILDS</span></div>
+    <div class="st"><span class="sv" id="dvc">0</span><span class="sk">DEVICES</span></div>
+    <div class="st"><span class="sv">30%↓</span><span class="sk">DEPLOY</span></div>
+    <div class="st"><span class="sv">25%↑</span><span class="sk">RELIABILITY</span></div>
+  </div>
+
+  <!-- CTAs -->
+  <div class="cta-row">
+    <a class="chip ch-y" href="mailto:bsshekhawat333@gmail.com">✉ Message</a>
+    <button class="chip ch-o" onclick="flyTo(1)">📜 Quests</button>
+    <a class="chip ch-o" href="https://www.linkedin.com/in/bheshajsingh/" target="_blank">🔗 LinkedIn</a>
+  </div>
+</div>
+
+<!-- ═══ PANEL: QUEST LOG ═══ -->
+<div id="panel-quest" class="zone-panel hidden">
+  <div class="pz-title">📜 QUEST LOG</div>
+  <div class="quest-grid">
+  <div class="qitem" style="border-color:#fb923c">
+    <div class="qi-co" style="color:#fb923c">⚡ AMAZON — AMAZON MUSIC</div>
+    <div class="qi-role">Software Dev Engineer</div>
+    <div class="qi-period">OCT 2023 – NOV 2025 · BENGALURU</div>
+    <ul class="qi-bullets">
+      <li>Migrated marketplace configs to Amazon Config Store — overhead slashed by <em>30%</em>.</li>
+      <li>ALF → DynamoDB Lock Client migration. Reliability up <em>25%</em>. <em>Boss: DEFEATED.</em></li>
+      <li>New Device Type IDs — feature gating for <em>1M+ devices</em>. <em>MEGA SCALE.</em></li>
+      <li>AutoRip email templates V1→V2. Engagement up <em>15%</em>.</li>
+    </ul>
+    <div class="xp-pills"><span class="pill">⭐ +2000 XP</span><span class="pill">🏅 1M DEVICES</span><span class="pill">🎁 AWS MASTERY</span></div>
+  </div>
+
+  <div class="qitem" style="border-color:#38bdf8">
+    <div class="qi-co" style="color:#38bdf8">🛡 CLOUDDEFENSE</div>
+    <div class="qi-role">Software Engineer</div>
+    <div class="qi-period">MAR 2023 – JUN 2023 · GURUGRAM</div>
+    <ul class="qi-bullets">
+      <li>Kubernetes vuln scanning — risk identification up <em>30%</em>. <em>Hunter: EQUIPPED.</em></li>
+      <li>reCAPTCHA shields — unauthorized access down <em>20%</em>. <em>Bots: ANNIHILATED.</em></li>
+      <li>Asset scoring — <em>25% better</em> prioritization of critical issues.</li>
+      <li>Optimized API calls + S3/CloudTrail checks. Latency <em>DEFEATED</em>.</li>
+    </ul>
+    <div class="xp-pills"><span class="pill">⭐ +1200 XP</span><span class="pill">🏅 BOT SLAYER</span><span class="pill">🎁 K8S RUNE</span></div>
+  </div>
+
+  <div class="qitem" style="border-color:#22c55e">
+    <div class="qi-co" style="color:#22c55e">🛒 AMAZON — VENDOR CENTRAL</div>
+    <div class="qi-role">Software Dev Engineer</div>
+    <div class="qi-period">JUN 2022 – MAR 2023 · BENGALURU</div>
+    <ul class="qi-bullets">
+      <li>Solo migrated CI/CD to AWS-CDK. Deploy time <em>down 30%</em>, reliability <em>up 20%</em>.</li>
+      <li>End-to-end UI — page load <em>25% faster</em>, engagement <em>up 15%</em>.</li>
+      <li>rtk-query + redux-saga + cookie-caching — retrieval time <em>down 20%</em>.</li>
+      <li>CloudWatch alarms + monitors. <em>Observability: ACTIVATED.</em></li>
+    </ul>
+    <div class="xp-pills"><span class="pill">⭐ +1500 XP</span><span class="pill">🏅 PIPELINE ARCH</span><span class="pill">🎁 CDK SCROLL</span></div>
+  </div>
+  </div>
+</div>
+
+<!-- ═══ PANEL: SKILLS ═══ -->
+<div id="panel-skills" class="zone-panel hidden">
+  <div class="pz-title">🌳 SKILL TREE</div>
+  <div class="sk-list">
+    <div class="sk-cat">// LANGUAGES</div>
+    <div class="sk-grid">
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">Java</span><span class="sk-lv">LV 90</span></div><div class="sk-track"><div class="sk-fill sf-o" data-w="90"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">JavaScript</span><span class="sk-lv">LV 80</span></div><div class="sk-track"><div class="sk-fill sf-y" data-w="80"></div></div></div>
+    </div>
+    <div class="sk-cat">// BACKEND</div>
+    <div class="sk-grid">
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">Spring Boot</span><span class="sk-lv">LV 88</span></div><div class="sk-track"><div class="sk-fill sf-g" data-w="88"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">Microservices</span><span class="sk-lv">LV 85</span></div><div class="sk-track"><div class="sk-fill sf-g" data-w="85"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">REST APIs</span><span class="sk-lv">LV 92</span></div><div class="sk-track"><div class="sk-fill sf-g" data-w="92"></div></div></div>
+    </div>
+    <div class="sk-cat">// AWS CLOUD</div>
+    <div class="sk-grid">
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">Lambda / DynamoDB</span><span class="sk-lv">LV 87</span></div><div class="sk-track"><div class="sk-fill sf-b" data-w="87"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">S3 / CloudWatch</span><span class="sk-lv">LV 85</span></div><div class="sk-track"><div class="sk-fill sf-b" data-w="85"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">AWS CDK / IAM</span><span class="sk-lv">LV 82</span></div><div class="sk-track"><div class="sk-fill sf-b" data-w="82"></div></div></div>
+    </div>
+    <div class="sk-cat">// DEVOPS</div>
+    <div class="sk-grid">
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">Docker</span><span class="sk-lv">LV 80</span></div><div class="sk-track"><div class="sk-fill sf-b" data-w="80"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">Kubernetes</span><span class="sk-lv">LV 75</span></div><div class="sk-track"><div class="sk-fill sf-b" data-w="75"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">CI/CD</span><span class="sk-lv">LV 88</span></div><div class="sk-track"><div class="sk-fill sf-p" data-w="88"></div></div></div>
+    </div>
+    <div class="sk-cat">// DATABASES & FRONTEND</div>
+    <div class="sk-grid">
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">PostgreSQL</span><span class="sk-lv">LV 80</span></div><div class="sk-track"><div class="sk-fill sf-p" data-w="80"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">Redis</span><span class="sk-lv">LV 78</span></div><div class="sk-track"><div class="sk-fill sf-pk" data-w="78"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">MySQL</span><span class="sk-lv">LV 82</span></div><div class="sk-track"><div class="sk-fill sf-p" data-w="82"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">ReactJS</span><span class="sk-lv">LV 83</span></div><div class="sk-track"><div class="sk-fill sf-b" data-w="83"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">Redux / RTK Query</span><span class="sk-lv">LV 78</span></div><div class="sk-track"><div class="sk-fill sf-p" data-w="78"></div></div></div>
+    </div>
+    <div class="sk-cat">// ARCHITECTURE</div>
+    <div class="sk-grid">
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">System Design</span><span class="sk-lv">LV 85</span></div><div class="sk-track"><div class="sk-fill sf-o" data-w="85"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">Distributed Systems</span><span class="sk-lv">LV 84</span></div><div class="sk-track"><div class="sk-fill sf-o" data-w="84"></div></div></div>
+      <div class="sk-item-p"><div class="sk-ih"><span class="sk-nm">DSA</span><span class="sk-lv">LV 80</span></div><div class="sk-track"><div class="sk-fill sf-y" data-w="80"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PANEL: EDUCATION ═══ -->
+<div id="panel-edu" class="zone-panel hidden">
+  <div class="pz-title">🏰 DUNGEONS CLEARED</div>
+  <div class="edu-item">
+    <div class="edu-ico">🎓</div>
+    <div class="edu-deg">B.TECH · COMPUTER SCIENCE</div>
+    <div class="edu-school">Amity University Rajasthan</div>
+    <div class="edu-info">📍 Jaipur, India &nbsp;·&nbsp; 2018 – 2022</div>
+    <span class="tph">🏆 CLEARED</span><span class="tph">+5000 XP</span><span class="tph">CS DEGREE</span>
+  </div>
+  <div class="edu-item">
+    <div class="edu-ico">📚</div>
+    <div class="edu-deg">INTERMEDIATE · CBSE</div>
+    <div class="edu-school">Rajasthan International School</div>
+    <div class="edu-info">📍 Kotputli, Jaipur &nbsp;·&nbsp; 2016 – 2018</div>
+    <span class="tph">🏆 CLEARED</span><span class="tph">+2000 XP</span>
+  </div>
+</div>
+
+<!-- ═══ PANEL: CONTACT ═══ -->
+<div id="panel-contact" class="zone-panel hidden" style="top:50%;left:50%;transform:translate(-50%,-50%)">
+  <div class="pz-title">💬 OPEN CHANNEL</div>
+  <div style="font-family:'Press Start 2P',monospace;font-size:.36rem;color:#22c55e;margin-bottom:1rem">● ONLINE · READY TO COLLABORATE</div>
+  <div class="con-links">
+    <a class="con-a" href="mailto:bsshekhawat333@gmail.com"><span style="font-size:1.2rem">✉️</span>bsshekhawat333@gmail.com</a>
+    <a class="con-a" href="https://www.linkedin.com/in/bheshajsingh/" target="_blank"><span style="font-size:1.2rem">🔗</span>linkedin.com/in/bheshajsingh</a>
+    <a class="con-a" href="tel:+917732988290"><span style="font-size:1.2rem">📞</span>+91 77329 88290</a>
+  </div>
+  <div style="margin-top:1.2rem;font-family:'Press Start 2P',monospace;font-size:.3rem;color:rgba(110,107,154,.6);line-height:2">© 3026 AD · ALL QUESTS IN PROGRESS</div>
+</div>
+
+<!-- TOAST -->
+<div id="twrap"></div>
+
+<script type="importmap">{"imports":{"three":"https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ═══════════════════════════════
+   RENDERER + SCENE + CAMERA
+═══════════════════════════════ */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x04030c, 0.022);
+scene.background = new THREE.Color(0x04030c);
+
+const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.1, 300);
+
+function onResize(){
+  renderer.setSize(innerWidth,innerHeight);
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+}
+onResize();
+window.addEventListener('resize',onResize);
+
+/* ═══════════════════════════════
+   CAMERA WAYPOINTS (one per section)
+═══════════════════════════════ */
+const WAYPOINTS = [
+  // 0 HOME — wide overhead shot looking at center gem
+  { pos: new THREE.Vector3(0, 9, 22), look: new THREE.Vector3(0, 0, 0) },
+  // 1 QUESTS — fly right, look at quest towers
+  { pos: new THREE.Vector3(18, 5, 8), look: new THREE.Vector3(12, 1, 0) },
+  // 2 SKILLS — fly left, look at skill orb cluster
+  { pos: new THREE.Vector3(-18, 5, 8), look: new THREE.Vector3(-12, 1, 0) },
+  // 3 EDUCATION — fly back, look at dungeon gate
+  { pos: new THREE.Vector3(0, 6, -18), look: new THREE.Vector3(0, 1, -26) },
+  // 4 CONTACT — zoom into center crystal
+  { pos: new THREE.Vector3(0, 2, 6), look: new THREE.Vector3(0, 2, 0) },
+];
+
+let currentSection = 0;
+let camPos   = WAYPOINTS[0].pos.clone();
+let camLook  = WAYPOINTS[0].look.clone();
+let targetPos  = camPos.clone();
+let targetLook = camLook.clone();
+let isTransitioning = false;
+let transitionProgress = 0;
+let transitionFrom = {pos: camPos.clone(), look: camLook.clone()};
+let transitionTo   = {pos: camPos.clone(), look: camLook.clone()};
+
+camera.position.copy(camPos);
+camera.lookAt(camLook);
+
+function easeInOutCubic(t){ return t<.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1; }
+
+/* ═══════════════════════════════
+   LIGHTING
+═══════════════════════════════ */
+scene.add(new THREE.AmbientLight(0x1a1040, 2.0));
+
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(10,20,10); sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);
+scene.add(sun);
+
+const NEON = [
+  [0x8b5cf6, 0,4,8,  90], [0x38bdf8, 0,3,-8, 80],
+  [0x22c55e,-12,4,2, 65], [0xffd23f, 12,4,2, 75],
+  [0xf472b6, 0,4,0,  55], [0xfb923c,-8,3,-4, 60],
+];
+const pLights = NEON.map(([col,x,y,z,i])=>{
+  const l=new THREE.PointLight(col,i,28); l.position.set(x,y,z); scene.add(l); return l;
+});
+
+/* ═══════════════════════════════
+   FLOOR GRID
+═══════════════════════════════ */
+const floorGeo = new THREE.PlaneGeometry(120,120);
+const floorMat = new THREE.MeshStandardMaterial({color:0x07061a,metalness:.92,roughness:.12});
+const floor = new THREE.Mesh(floorGeo,floorMat);
+floor.rotation.x=-Math.PI/2; floor.position.y=-2; floor.receiveShadow=true;
+scene.add(floor);
+
+const grid = new THREE.GridHelper(120,60,0x8b5cf6,0x1a1835);
+grid.position.y=-1.98; grid.material.opacity=.3; grid.material.transparent=true;
+scene.add(grid);
+
+/* ═══════════════════════════════
+   HERO CENTER — giant gem + rings
+═══════════════════════════════ */
+const gemG = new THREE.IcosahedronGeometry(2,1);
+const gemM = new THREE.MeshStandardMaterial({color:0x8b5cf6,metalness:1,roughness:.05,emissive:0x4c1d95,emissiveIntensity:.7});
+const gem = new THREE.Mesh(gemG,gemM); gem.position.set(0,1.5,0); gem.castShadow=true; scene.add(gem);
+
+const wireM = new THREE.MeshBasicMaterial({color:0xa78bfa,wireframe:true,transparent:true,opacity:.22});
+const wire = new THREE.Mesh(new THREE.IcosahedronGeometry(2.4,1),wireM); wire.position.copy(gem.position); scene.add(wire);
+
+// Glowing halo
+const haloM = new THREE.MeshBasicMaterial({color:0xc4b5fd,transparent:true,opacity:.14,side:THREE.BackSide});
+const halo = new THREE.Mesh(new THREE.SphereGeometry(3,16,16),haloM); halo.position.copy(gem.position); scene.add(halo);
+
+// Rings
+function mkRing(r,tube,col,tilt,tiltZ=0){
+  const m=new THREE.Mesh(new THREE.TorusGeometry(r,tube,8,80),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.5}));
+  m.rotation.x=tilt; m.rotation.z=tiltZ; return m;
+}
+const ringG=new THREE.Group();
+ringG.add(mkRing(3,.03,0x8b5cf6,Math.PI*.3),mkRing(3.6,.02,0x38bdf8,Math.PI*.15,.4),mkRing(4.1,.018,0xffd23f,Math.PI*.55));
+ringG.position.copy(gem.position); scene.add(ringG);
+
+/* ═══════════════════════════════
+   QUEST ZONE (RIGHT) — tall towers
+═══════════════════════════════ */
+function mkTower(x,z,col,h,label){
+  const g=new THREE.Group(); g.position.set(x,-2,z);
+  // Base
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(1,1.2,.3,6),new THREE.MeshStandardMaterial({color:col,metalness:.9,roughness:.2,emissive:col,emissiveIntensity:.2}));
+  g.add(base);
+  // Shaft
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.3,.4,h,8),new THREE.MeshStandardMaterial({color:0x0d0c22,metalness:.95,roughness:.08}));
+  shaft.position.y=h/2+.15; g.add(shaft);
+  // Cap
+  const cap=new THREE.Mesh(new THREE.CylinderGeometry(0,.5,.8,6),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.8,metalness:.9,roughness:.1}));
+  cap.position.y=h+.55; g.add(cap);
+  // Glow light
+  const pl=new THREE.PointLight(col,30,10); pl.position.y=h+1; g.add(pl);
+  // Ring at top
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.7,.04,8,32),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.7}));
+  ring.position.y=h+.1; ring.rotation.x=Math.PI/2; g.add(ring);
+  scene.add(g);
+  return g;
+}
+const tower1=mkTower(10,-2,0xfb923c,5);
+const tower2=mkTower(13, 2,0x38bdf8,4);
+const tower3=mkTower(16,-3,0x22c55e,6);
+const tower4=mkTower(14, 5,0x8b5cf6,3.5);
+
+/* ═══════════════════════════════
+   SKILL ZONE (LEFT) — orbiting orbs
+═══════════════════════════════ */
+const skillColors=[0x8b5cf6,0x38bdf8,0x22c55e,0xffd23f,0xf472b6,0xfb923c,0xa78bfa,0x34d399];
+const skillOrbs=[];
+const skillCenter=new THREE.Vector3(-14,2,0);
+
+// Central orb
+const cOrb=new THREE.Mesh(new THREE.SphereGeometry(1.2,20,20),new THREE.MeshStandardMaterial({color:0xa78bfa,emissive:0x7c3aed,emissiveIntensity:.8,metalness:.9,roughness:.1}));
+cOrb.position.copy(skillCenter); scene.add(cOrb);
+const cOrbHalo=new THREE.Mesh(new THREE.SphereGeometry(1.8,16,16),new THREE.MeshBasicMaterial({color:0xa78bfa,transparent:true,opacity:.1,side:THREE.BackSide}));
+cOrbHalo.position.copy(skillCenter); scene.add(cOrbHalo);
+
+// Orbiting skill orbs
+for(let i=0;i<8;i++){
+  const angle=(i/8)*Math.PI*2;
+  const radius=3+Math.sin(i)*0.8;
+  const height=Math.sin(i*1.3)*.8;
+  const orb=new THREE.Mesh(
+    new THREE.SphereGeometry(.35+Math.random()*.2,12,12),
+    new THREE.MeshStandardMaterial({color:skillColors[i],emissive:skillColors[i],emissiveIntensity:.9,metalness:.8,roughness:.15})
+  );
+  orb.position.set(skillCenter.x+Math.cos(angle)*radius, skillCenter.y+height, skillCenter.z+Math.sin(angle)*radius);
+  orb.userData={angle,radius,height,speed:.4+Math.random()*.3,cx:skillCenter.x,cz:skillCenter.z};
+  scene.add(orb);
+  // Trail line
+  const lineMat=new THREE.LineBasicMaterial({color:skillColors[i],transparent:true,opacity:.25});
+  const pts=[]; for(let j=0;j<40;j++){const a=angle+(j/40)*Math.PI*2/8;pts.push(new THREE.Vector3(skillCenter.x+Math.cos(a)*radius,skillCenter.y+height,skillCenter.z+Math.sin(a)*radius));}
+  const orbit=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),lineMat);
+  scene.add(orbit);
+  skillOrbs.push(orb);
+}
+
+/* ═══════════════════════════════
+   EDUCATION ZONE (BACK) — arch gate
+═══════════════════════════════ */
+function mkArch(x,z){
+  const g=new THREE.Group(); g.position.set(x,-2,z);
+  const pillarM=new THREE.MeshStandardMaterial({color:0x1e1b44,metalness:.9,roughness:.15,emissive:0x8b5cf6,emissiveIntensity:.15});
+  // Left pillar
+  const lp=new THREE.Mesh(new THREE.BoxGeometry(.6,8,.6),pillarM);
+  lp.position.set(-3,4,0); g.add(lp);
+  // Right pillar
+  const rp=new THREE.Mesh(new THREE.BoxGeometry(.6,8,.6),pillarM);
+  rp.position.set(3,4,0); g.add(rp);
+  // Arch top
+  const at=new THREE.Mesh(new THREE.TorusGeometry(3,.35,8,24,Math.PI),new THREE.MeshStandardMaterial({color:0x8b5cf6,emissive:0x8b5cf6,emissiveIntensity:.6,metalness:.9,roughness:.1}));
+  at.position.set(0,8,0); at.rotation.z=Math.PI; g.add(at);
+  // Gate glow
+  const glow=new THREE.PointLight(0x8b5cf6,60,16); glow.position.set(0,8,0); g.add(glow);
+  // Stars above arch
+  const starM=new THREE.MeshBasicMaterial({color:0xffd23f});
+  for(let i=0;i<5;i++){
+    const s=new THREE.Mesh(new THREE.SphereGeometry(.1,6,6),starM);
+    s.position.set((Math.random()-.5)*8, 10+Math.random()*3, (Math.random()-.5)*2);
+    g.add(s);
+  }
+  // Ground rune circles
+  for(let i=1;i<4;i++){
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(i,.02,6,40),new THREE.MeshBasicMaterial({color:0x8b5cf6,transparent:true,opacity:.3}));
+    ring.rotation.x=-Math.PI/2; ring.position.y=.01; g.add(ring);
+  }
+  scene.add(g);
+  return g;
+}
+mkArch(0,-26);
+
+// Two dungeon stones
+function mkDungeon(x,z,col,label){
+  const g=new THREE.Group(); g.position.set(x,-2,z);
+  const stone=new THREE.Mesh(new THREE.CylinderGeometry(2,2.2,.4,8),new THREE.MeshStandardMaterial({color:0x12102a,metalness:.8,roughness:.2}));
+  g.add(stone);
+  const gem=new THREE.Mesh(new THREE.OctahedronGeometry(1,0),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.7,metalness:.9,roughness:.1}));
+  gem.position.y=1.2; g.add(gem);
+  const pl=new THREE.PointLight(col,40,12); pl.position.y=2; g.add(pl);
+  const r=new THREE.Mesh(new THREE.TorusGeometry(2.2,.04,8,32),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.5}));
+  r.rotation.x=-Math.PI/2; r.position.y=.21; g.add(r);
+  scene.add(g);
+  return g;
+}
+const dung1=mkDungeon(-5,-23,0xffd23f);
+const dung2=mkDungeon( 5,-23,0xa78bfa);
+
+/* ═══════════════════════════════
+   CONTACT ZONE (CENTER) — big crystal
+═══════════════════════════════ */
+const crystalG=new THREE.Group(); crystalG.position.set(0,0,0);
+const cryM=new THREE.MeshStandardMaterial({color:0x38bdf8,emissive:0x0e7490,emissiveIntensity:.7,metalness:.95,roughness:.05,transparent:true,opacity:.9});
+const cry=new THREE.Mesh(new THREE.OctahedronGeometry(1.4,0),cryM);
+crystalG.add(cry);
+const cryWire=new THREE.Mesh(new THREE.OctahedronGeometry(1.8,0),new THREE.MeshBasicMaterial({color:0x67e8f9,wireframe:true,transparent:true,opacity:.35}));
+crystalG.add(cryWire);
+const cryPL=new THREE.PointLight(0x38bdf8,50,12); crystalG.add(cryPL);
+scene.add(crystalG);
+
+/* ═══════════════════════════════
+   PARTICLES (ambient stars)
+═══════════════════════════════ */
+const pCount=2200;
+const pPos=new Float32Array(pCount*3);
+const pCol=new Float32Array(pCount*3);
+const palette=[new THREE.Color(0x8b5cf6),new THREE.Color(0x38bdf8),new THREE.Color(0xffd23f),new THREE.Color(0x22c55e),new THREE.Color(0xf472b6),new THREE.Color(0xffffff)];
+for(let i=0;i<pCount;i++){
+  pPos[i*3]=(Math.random()-.5)*160;
+  pPos[i*3+1]=Math.random()*50-3;
+  pPos[i*3+2]=(Math.random()-.5)*160;
+  const c=palette[Math.floor(Math.random()*palette.length)];
+  pCol[i*3]=c.r; pCol[i*3+1]=c.g; pCol[i*3+2]=c.b;
+}
+const pGeo=new THREE.BufferGeometry();
+pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+pGeo.setAttribute('color',new THREE.BufferAttribute(pCol,3));
+const pMat=new THREE.PointsMaterial({size:.08,vertexColors:true,transparent:true,opacity:.85,sizeAttenuation:true});
+scene.add(new THREE.Points(pGeo,pMat));
+
+/* ═══════════════════════════════
+   FLOATING CUBES (ambient deco)
+═══════════════════════════════ */
+const cubes=[];
+const cubeColors=[0x8b5cf6,0x38bdf8,0x22c55e,0xffd23f,0xf472b6,0xfb923c];
+for(let i=0;i<24;i++){
+  const s=.1+Math.random()*.22;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(s,s,s),new THREE.MeshStandardMaterial({color:cubeColors[i%6],emissive:cubeColors[i%6],emissiveIntensity:.85,metalness:.8,roughness:.2}));
+  const angle=(i/24)*Math.PI*2;
+  const r=6+Math.random()*14;
+  m.position.set(Math.cos(angle)*r+(Math.random()-.5)*4,Math.random()*6+.3,Math.sin(angle)*r+(Math.random()-.5)*4);
+  m.userData={oy:m.position.y,speed:.3+Math.random()*.5,rot:.008+Math.random()*.015};
+  scene.add(m);
+  cubes.push(m);
+}
+
+/* ═══════════════════════════════
+   SECTION → CAMERA TRANSITIONS
+═══════════════════════════════ */
+window.flyTo = function(idx){
+  if(idx===currentSection&&!isTransitioning) return;
+  currentSection=idx;
+  isTransitioning=true;
+  transitionProgress=0;
+  transitionFrom={pos:camPos.clone(),look:camLook.clone()};
+  transitionTo={pos:WAYPOINTS[idx].pos.clone(),look:WAYPOINTS[idx].look.clone()};
+  updateUI(idx);
+};
+
+const ZONE_NAMES=['// HOME BASE','// QUEST LOG','// SKILL TREE','// DUNGEONS','// CONTACT'];
+function flashZoneName(idx){
+  const el=document.getElementById('zone-name');
+  el.textContent=ZONE_NAMES[idx];
+  el.style.opacity='1';
+  setTimeout(()=>el.style.opacity='0',1400);
+}
+
+/* ═══════════════════════════════
+   PANELS
+═══════════════════════════════ */
+const panels={
+  0:null,
+  1:document.getElementById('panel-quest'),
+  2:document.getElementById('panel-skills'),
+  3:document.getElementById('panel-edu'),
+  4:document.getElementById('panel-contact'),
+};
+const heroHUD=document.getElementById('hud');
+const dots=document.querySelectorAll('.dot-nav');
+const navBtns=[0,1,2,3,4].map(i=>document.getElementById('nb'+i));
+
+function updateUI(idx){
+  // hide all panels
+  Object.values(panels).forEach(p=>p&&p.classList.add('hidden'));
+  heroHUD.classList.add('hidden');
+  // show correct
+  if(idx===0) heroHUD.classList.remove('hidden');
+  else if(panels[idx]) panels[idx].classList.remove('hidden');
+  // dots + nav btns
+  dots.forEach((d,i)=>d.classList.toggle('active',i===idx));
+  navBtns.forEach((b,i)=>{if(b)b.classList.toggle('active',i===idx)});
+  // trigger bar fills when skills or quest panel opens
+  if(idx===1||idx===2){
+    setTimeout(()=>{
+      document.querySelectorAll('.sk-fill').forEach(el=>{
+        const w=el.dataset.w; if(w&&el.style.width==='')el.style.width=w+'%';
+      });
+    },400);
+  }
+  // scroll hint hide after first move
+  if(idx!==0) document.getElementById('scroll-hint').style.opacity='0';
+  else document.getElementById('scroll-hint').style.opacity='1';
+}
+
+/* ═══════════════════════════════
+   SCROLL TO NAVIGATE — content scrolls first, section second
+═══════════════════════════════ */
+let scrollLock=false;
+window.addEventListener('wheel',e=>{
+  const dir=e.deltaY>0?1:-1;
+
+  // Get active panel — check if it has scrollable overflow
+  const activeEl=currentSection===0?heroHUD:panels[currentSection];
+  if(activeEl && activeEl.scrollHeight > activeEl.clientHeight+4){
+    if(dir>0){
+      const atBottom=activeEl.scrollTop+activeEl.clientHeight>=activeEl.scrollHeight-12;
+      if(!atBottom)return; // let browser scroll the panel naturally
+    } else {
+      const atTop=activeEl.scrollTop<=12;
+      if(!atTop)return;
+    }
+  }
+
+  if(scrollLock)return;
+  scrollLock=true;
+  setTimeout(()=>scrollLock=false,1200);
+  const next=Math.max(0,Math.min(4,currentSection+dir));
+  flyTo(next);
+},{passive:true});
+
+// Touch swipe
+let touchStartY=0;
+window.addEventListener('touchstart',e=>touchStartY=e.touches[0].clientY,{passive:true});
+window.addEventListener('touchend',e=>{
+  const dy=touchStartY-e.changedTouches[0].clientY;
+  if(Math.abs(dy)>40){
+    const dir=dy>0?1:-1;
+    flyTo(Math.max(0,Math.min(4,currentSection+dir)));
+  }
+},{passive:true});
+
+/* ═══════════════════════════════
+   MOUSE PARALLAX
+═══════════════════════════════ */
+let mx=0,my=0,tmx=0,tmy=0;
+window.addEventListener('mousemove',e=>{
+  mx=(e.clientX/innerWidth-.5)*2;
+  my=(e.clientY/innerHeight-.5)*2;
+});
+
+/* ═══════════════════════════════
+   CLOCK + ANIMATE
+═══════════════════════════════ */
+const clock=new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  const t=clock.getElapsedTime();
+
+  tmx+=(mx-tmx)*.04; tmy+=(my-tmy)*.04;
+
+  // Camera transition
+  if(isTransitioning){
+    transitionProgress=Math.min(transitionProgress+.016,1);
+    const e=easeInOutCubic(transitionProgress);
+    camPos.lerpVectors(transitionFrom.pos,transitionTo.pos,e);
+    camLook.lerpVectors(transitionFrom.look,transitionTo.look,e);
+    if(transitionProgress>=1) isTransitioning=false;
+  }
+
+  // Gentle parallax on top
+  const parallaxPos=camPos.clone();
+  parallaxPos.x+=tmx*.18;
+  parallaxPos.y-=tmy*.09;
+
+  camera.position.copy(parallaxPos);
+  camera.lookAt(camLook);
+
+  // Gem animation
+  gem.rotation.y=t*.5; gem.rotation.x=Math.sin(t*.3)*.18;
+  gem.position.y=1.5+Math.sin(t*.9)*.25;
+  wire.position.copy(gem.position); wire.rotation.y=-t*.4; wire.rotation.z=t*.15;
+  halo.position.copy(gem.position); halo.material.opacity=.1+Math.sin(t*1.5)*.05;
+  ringG.position.copy(gem.position); ringG.rotation.y=t*.5; ringG.rotation.z=t*.2;
+
+  // Skill orbs orbit
+  skillOrbs.forEach((orb,i)=>{
+    const u=orb.userData;
+    u.angle+=u.speed*.012;
+    orb.position.x=u.cx+Math.cos(u.angle)*u.radius;
+    orb.position.z=u.cz+Math.sin(u.angle)*u.radius;
+    orb.position.y=skillCenter.y+u.height+Math.sin(t*.8+i)*.3;
+    orb.rotation.y+=.02;
+  });
+  cOrb.rotation.y=t*.4; cOrb.position.y=skillCenter.y+Math.sin(t*.7)*.2;
+
+  // Crystal pulse (contact)
+  crystalG.rotation.y=t*.6; crystalG.rotation.x=Math.sin(t*.4)*.15;
+  crystalG.position.y=Math.sin(t*.8)*.2;
+  cryWire.rotation.y=-t*.5;
+  cryPL.intensity=40+Math.sin(t*2)*14;
+
+  // Towers bob
+  [tower1,tower2,tower3,tower4].forEach((tw,i)=>{
+    tw.position.y=-2+Math.sin(t*.5+i*.8)*.15;
+  });
+
+  // Dungeon gems spin
+  [dung1,dung2].forEach((d,i)=>{
+    const g=d.children[1]; if(g){g.rotation.y=t*(i%2===0?.6:-.6); g.position.y=1.2+Math.sin(t*.9+i)*.15;}
+  });
+
+  // Floating cubes
+  cubes.forEach((c,i)=>{
+    const u=c.userData;
+    c.rotation.x+=u.rot; c.rotation.y+=u.rot*.7;
+    c.position.y=u.oy+Math.sin(t*u.speed+i)*.5;
+  });
+
+  // Neon lights pulse
+  pLights.forEach((pl,i)=>pl.intensity=NEON[i][4]+Math.sin(t*(1+i*.35)+i)*15);
+
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+
+<script>
+/* ── CURSOR ── */
+const cdot=document.getElementById('cdot'),cring=document.getElementById('cring');
+let mx2=0,my2=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx2=e.clientX;my2=e.clientY});
+(function cl(){rx+=(mx2-rx)*.1;ry+=(my2-ry)*.1;cdot.style.left=mx2+'px';cdot.style.top=my2+'px';cring.style.left=rx+'px';cring.style.top=ry+'px';requestAnimationFrame(cl)})();
+
+/* ── COUNTERS ── */
+function animCount(el,target,dur,suffix){
+  dur=dur||1400;suffix=suffix||'';
+  const s=performance.now();
+  (function f(now){
+    const t=Math.min((now-s)/dur,1),ease=1-Math.pow(1-t,3),v=Math.round(ease*target);
+    el.textContent=(target>=1000?v.toLocaleString():v)+suffix;
+    if(t<1)requestAnimationFrame(f);
+  })(performance.now());
+}
+document.querySelectorAll('[data-cnt]').forEach(el=>animCount(el,+el.dataset.cnt));
+animCount(document.getElementById('dvc'),1000000,2500,'M+');
+let xp=0;const xpEl=document.getElementById('xpc');
+const xpIv=setInterval(()=>{xp=Math.min(xp+88,7920);xpEl.textContent=xp.toLocaleString()+' / 9,000 XP';if(xp>=7920)clearInterval(xpIv);},16);
+
+/* ── XP BAR FILLS (hero hud) ── */
+document.querySelectorAll('.xp-fill').forEach(el=>{
+  const w=el.dataset.w;
+  if(w)setTimeout(()=>el.style.width=w+'%',500);
+});
+
+/* ── CONFETTI ── */
+function confetti(){
+  const cols=['#ffd23f','#8b5cf6','#22c55e','#38bdf8','#f472b6','#fb923c','#fff'];
+  for(let i=0;i<80;i++){
+    const c=document.createElement('div');const sz=5+Math.random()*7;
+    c.style.cssText=`position:fixed;z-index:9998;pointer-events:none;width:${sz}px;height:${sz}px;border-radius:${Math.random()>.5?'50%':'2px'};background:${cols[Math.floor(Math.random()*cols.length)]};left:${Math.random()*100}vw;top:-20px;animation:confetti-fall ${2+Math.random()*3}s ${Math.random()*2}s ease-in forwards;`;
+    document.body.appendChild(c);setTimeout(()=>c.remove(),7000);
+  }
+}
+window.addEventListener('load',()=>setTimeout(confetti,700));
+
+/* ── TOASTS ── */
+const TOASTS=[
+  {icon:'🏆',title:'ACHIEVEMENT UNLOCKED',msg:'1 Million Devices Configured!'},
+  {icon:'⚡',title:'SPEED RUN COMPLETE',msg:'Deploy time slashed by 30%!'},
+  {icon:'🛡️',title:'SECURITY BADGE EARNED',msg:'All vulnerabilities sealed!'},
+  {icon:'🌟',title:'S-RANK ENGINEER',msg:'Impact Score: LEGENDARY!'},
+];
+const tw=document.getElementById('twrap');
+let ti=0;
+function nextToast(){
+  if(ti>=TOASTS.length)return;const t=TOASTS[ti++];
+  const el=document.createElement('div');el.className='toast';
+  el.innerHTML=`<span class="ti">${t.icon}</span><div><div class="tt">${t.title}</div><div class="tm">${t.msg}</div></div>`;
+  tw.appendChild(el);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show')));
+  setTimeout(()=>{el.classList.remove('show');setTimeout(()=>{el.remove();setTimeout(nextToast,900);},500);},3800);
+}
+setTimeout(nextToast,2000);
+</script>
+</body>
+</html>
