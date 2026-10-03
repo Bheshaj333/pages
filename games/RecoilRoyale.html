@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Recoil Royale - Multiplayer Shooter</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
     <style>
@@ -18,11 +21,13 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             width: 100vw;
             height: 100vh;
+            height: 100dvh; /* mobile: excludes the browser address bar */
         }
 
         #app {
             width: 100vw;
             height: 100vh;
+            height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -140,6 +145,54 @@
             transform: translate(-50%, -50%);
             background: #000;
             image-rendering: crisp-edges;
+            touch-action: none; /* no double-tap zoom / scrolling while tapping to shoot */
+        }
+
+        /* Letterbox bars match the arena so the game looks edge-to-edge */
+        #gameScreen.active {
+            background: #000;
+        }
+
+        .rotate-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.88);
+            color: white;
+            z-index: 998; /* below the leave button and stats */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+            gap: 18px;
+        }
+
+        .rotate-overlay.active {
+            display: flex;
+        }
+
+        .rotate-overlay .rotate-icon {
+            font-size: 72px;
+            animation: rotatePhone 1.8s ease-in-out infinite;
+        }
+
+        .rotate-overlay p {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ffd700;
+        }
+
+        .rotate-overlay button {
+            width: auto;
+            padding: 14px 28px;
+            margin: 0;
+        }
+
+        @keyframes rotatePhone {
+            0%, 20% { transform: rotate(0deg); }
+            50%, 70% { transform: rotate(90deg); }
+            100% { transform: rotate(0deg); }
         }
 
         .leave-btn {
@@ -509,6 +562,11 @@
 
         <div id="gameScreen" class="screen">
             <canvas id="gameCanvas"></canvas>
+            <div class="rotate-overlay" id="rotateOverlay">
+                <div class="rotate-icon">📱</div>
+                <p>Rotate your phone for full screen</p>
+                <button onclick="enterMobileFullscreen()">Go Fullscreen</button>
+            </div>
             <button class="leave-btn" id="leaveBtn" onclick="showLeaveConfirmation()">✕</button>
             <div class="game-stats" id="gameStats">
                 <span id="aliveCount">Players: 0</span> | 
@@ -720,6 +778,75 @@
             }
         });
 
+        // ===== MOBILE FULLSCREEN & ORIENTATION =====
+        // The arena is always 1920x1080 (16:9) so every device plays the same game.
+        // On phones that only fills the screen in landscape, so we nudge players there.
+        const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+
+        function isMobileFullscreen() {
+            return !!(document.fullscreenElement || document.webkitFullscreenElement);
+        }
+
+        // Must be called from a tap (browsers only allow fullscreen from a user gesture)
+        function enterMobileFullscreen() {
+            if (!isTouchDevice || currentScreen !== 'game') return;
+
+            const root = document.documentElement;
+            const request = root.requestFullscreen || root.webkitRequestFullscreen;
+            const afterFullscreen = () => {
+                // Android Chrome can lock to landscape once fullscreen; iPhone ignores this
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
+            };
+
+            if (!isMobileFullscreen() && request) {
+                try {
+                    const result = request.call(root, { navigationUI: 'hide' });
+                    if (result && result.then) result.then(afterFullscreen).catch(() => {});
+                } catch (e) { /* not supported (e.g. iPhone Safari) */ }
+            } else {
+                afterFullscreen();
+            }
+        }
+
+        function exitMobileFullscreen() {
+            if (screen.orientation && screen.orientation.unlock) {
+                try { screen.orientation.unlock(); } catch (e) {}
+            }
+            if (isMobileFullscreen()) {
+                const exit = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exit) {
+                    try {
+                        const result = exit.call(document);
+                        if (result && result.catch) result.catch(() => {});
+                    } catch (e) {}
+                }
+            }
+        }
+
+        function updateRotateOverlay() {
+            const overlay = document.getElementById('rotateOverlay');
+            if (!overlay) return;
+            const isPortrait = window.innerHeight > window.innerWidth;
+            overlay.classList.toggle('active', isTouchDevice && currentScreen === 'game' && isPortrait);
+
+            // iPhone Safari has no fullscreen API for pages - only show the button where it works
+            const root = document.documentElement;
+            const canFullscreen = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+            overlay.querySelector('button').style.display = canFullscreen ? '' : 'none';
+        }
+
+        function handleViewportChange() {
+            if (canvas) setupCanvasScaling();
+            updateRotateOverlay();
+        }
+
+        window.addEventListener('resize', handleViewportChange);
+        window.addEventListener('orientationchange', () => setTimeout(handleViewportChange, 150));
+        document.addEventListener('fullscreenchange', handleViewportChange);
+        document.addEventListener('webkitfullscreenchange', handleViewportChange);
+
         // ===== CANVAS SCALING (MAINTAINS FIXED GAME WORLD) =====
         function setupCanvasScaling() {
             const container = window;
@@ -735,9 +862,9 @@
             canvas.style.width = (GAME_WIDTH * scale) + 'px';
             canvas.style.height = (GAME_HEIGHT * scale) + 'px';
             
-            // Set canvas internal size (logical game resolution)
-            canvas.width = GAME_WIDTH;
-            canvas.height = GAME_HEIGHT;
+            // Set canvas internal size (logical game resolution) - only once, resizing clears the canvas
+            if (canvas.width !== GAME_WIDTH) canvas.width = GAME_WIDTH;
+            if (canvas.height !== GAME_HEIGHT) canvas.height = GAME_HEIGHT;
         }
 
         // ===== UI FUNCTIONS =====
@@ -757,7 +884,11 @@
                 if (screenName === 'menu' || screenName === 'winner') {
                     isInGame = false;
                 }
+                // Menus are laid out for portrait, so give the phone back its normal orientation
+                exitMobileFullscreen();
             }
+
+            updateRotateOverlay();
         }
 
         function switchTab(tabName) {
@@ -1147,6 +1278,7 @@
             }
 
             switchScreen('game');
+            enterMobileFullscreen(); // still inside the "Start" tap, so fullscreen is allowed
             initGame();
         }
 
@@ -1157,8 +1289,7 @@
             
             // Setup fixed game world with scaling
             setupCanvasScaling();
-            
-            window.addEventListener('resize', setupCanvasScaling);
+            updateRotateOverlay();
 
             // Position players in a circle using FIXED game coordinates
             let playerArray = Array.from(players.values());
@@ -1211,6 +1342,8 @@
 
         function handleTouchStart(e) {
             e.preventDefault();
+            // First tap in a game also takes the phone fullscreen (needs a user gesture)
+            if (!isMobileFullscreen()) enterMobileFullscreen();
             if (isWindowFocused) {
                 shoot();
             }
