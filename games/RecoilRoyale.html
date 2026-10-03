@@ -592,10 +592,6 @@
         let isWindowFocused = true;
         let lastFrameTime = 0;
         let gameEnded = false;
-        let frameCount = 0;
-        let lastFpsCheck = 0;
-        let currentFps = 60;
-        let devicePerformance = 'high'; // high, medium, low
         let pendingDbUpdates = new Map();
         let lastDbUpdate = 0;
 
@@ -984,6 +980,7 @@
                 .channel('game-' + roomId)
                 .on('broadcast', { event: 'shoot' }, handleRemoteShoot)
                 .on('broadcast', { event: 'move' }, handleRemoteMove)
+                .on('broadcast', { event: 'hit' }, handleRemoteHit)
                 .on('broadcast', { event: 'player_death' }, handleRemotePlayerDeath)
                 .subscribe();
         }
@@ -1048,14 +1045,17 @@
                 .eq('room_id', roomId);
 
             if (!result.error && result.data) {
+                // Fallback only: realtime broadcasts are the source of truth during play.
+                // DB rows lag behind, so never let them raise health, revive anyone, or touch our own player.
                 result.data.forEach(playerData => {
                     const existing = players.get(playerData.id);
-                    if (existing) {
-                        existing.health = playerData.health;
-                        existing.isAlive = playerData.is_alive;
-                        existing.kills = playerData.kills || 0;
+                    if (existing && playerData.id !== myPlayerId) {
+                        existing.health = Math.min(existing.health, playerData.health);
+                        if (!playerData.is_alive) existing.isAlive = false;
+                        existing.kills = Math.max(existing.kills || 0, playerData.kills || 0);
                     }
                 });
+                checkGameEnd();
             }
         }
 
@@ -1177,9 +1177,16 @@
                     health: player.health || 100,
                     isAlive: player.isAlive !== false,
                     kills: player.kills || 0,
-                    lastBotShot: 0
+                    lastBotShot: 0,
+                    offsetX: 0,
+                    offsetY: 0,
+                    offsetRotation: 0,
+                    lastStateTime: 0
                 });
             });
+
+            lastFrameTime = 0;
+            physicsAccumulator = 0;
 
             window.addEventListener('keydown', handleKeyDown);
             canvas.addEventListener('click', handleCanvasClick);
@@ -1218,8 +1225,8 @@
             const player = players.get(myPlayerId);
             if (!player || !player.isAlive) return;
 
-            createBullet(player);
-            createMuzzleFlash(player);
+            createBullet(player.id, player.color, player.x, player.y, player.rotation);
+            createMuzzleFlash(player.x, player.y, player.rotation, player.color);
 
             // Apply recoil using original PC values
             player.vx -= Math.cos(player.rotation) * PHYSICS.RECOIL_FORCE;
@@ -1227,166 +1234,147 @@
             player.rotationSpeed += (Math.random() - 0.5) * PHYSICS.ROTATION_RECOIL;
 
             if (!isOfflineMode && gameChannel) {
+                // Send the full post-recoil state so other screens fire the bullet from
+                // exactly this spot and continue simulating us from the same velocity
                 gameChannel.send({
                     type: 'broadcast',
                     event: 'shoot',
                     payload: {
-                        playerId: myPlayerId,
-                        x: player.x,
-                        y: player.y,
-                        rotation: player.rotation
+                        ...getNetworkState(player),
+                        timestamp: now
                     }
                 });
             }
         }
 
-        function createBullet(player) {
+        function createBullet(ownerId, color, x, y, rotation) {
             bullets.push({
-                x: player.x + Math.cos(player.rotation) * 35,
-                y: player.y + Math.sin(player.rotation) * 35,
-                vx: Math.cos(player.rotation) * PHYSICS.BULLET_SPEED,
-                vy: Math.sin(player.rotation) * PHYSICS.BULLET_SPEED,
-                ownerId: player.id,
-                color: player.color,
+                x: x + Math.cos(rotation) * 35,
+                y: y + Math.sin(rotation) * 35,
+                vx: Math.cos(rotation) * PHYSICS.BULLET_SPEED,
+                vy: Math.sin(rotation) * PHYSICS.BULLET_SPEED,
+                ownerId: ownerId,
+                color: color,
                 trail: [],
                 life: 500
             });
         }
 
-        function createMuzzleFlash(player) {
+        function createMuzzleFlash(x, y, rotation, color) {
             for (let i = 0; i < 12; i++) {
-                const angle = player.rotation + (Math.random() - 0.5) * 0.8;
+                const angle = rotation + (Math.random() - 0.5) * 0.8;
                 const speed = Math.random() * 3 + 1.5;
                 particles.push({
-                    x: player.x + Math.cos(player.rotation) * 35,
-                    y: player.y + Math.sin(player.rotation) * 35,
+                    x: x + Math.cos(rotation) * 35,
+                    y: y + Math.sin(rotation) * 35,
                     vx: Math.cos(angle) * speed,
                     vy: Math.sin(angle) * speed,
                     life: 30,
                     maxLife: 30,
-                    color: player.color,
+                    color: color,
                     size: Math.random() * 3 + 2
                 });
             }
         }
 
-        // ===== MULTIPLAYER HANDLERS WITH INTERPOLATION =====
-        function handleRemoteShoot(payload) {
-            if (payload.payload.playerId === myPlayerId) return;
-            
-            const player = players.get(payload.payload.playerId);
-            if (!player) return;
+        // ===== MULTIPLAYER STATE SYNC =====
+        // Remote players run the same fixed-step physics locally between updates (dead reckoning).
+        // When an update arrives we snap to the true state and hide the jump with a visual
+        // offset that fades out over a few frames.
+        function getNetworkState(player) {
+            return {
+                playerId: player.id,
+                x: Math.round(player.x * 100) / 100,
+                y: Math.round(player.y * 100) / 100,
+                rotation: Math.round(player.rotation * 1000) / 1000,
+                vx: Math.round(player.vx * 1000) / 1000,
+                vy: Math.round(player.vy * 1000) / 1000,
+                rotationSpeed: Math.round(player.rotationSpeed * 10000) / 10000
+            };
+        }
 
-            // Smoothly update position for shooting
-            updateRemotePlayerPosition(player, payload.payload);
-            
-            createBullet(player);
-            createMuzzleFlash(player);
+        function normalizeAngle(angle) {
+            while (angle > Math.PI) angle -= Math.PI * 2;
+            while (angle < -Math.PI) angle += Math.PI * 2;
+            return angle;
+        }
+
+        function applyRemoteState(player, data) {
+            // Ignore packets that arrive out of order (timestamps come from the same sender clock)
+            if (data.timestamp && player.lastStateTime && data.timestamp < player.lastStateTime) return;
+            if (data.timestamp) player.lastStateTime = data.timestamp;
+
+            if (player.hasReceivedUpdate) {
+                player.offsetX = (player.offsetX || 0) + (player.x - data.x);
+                player.offsetY = (player.offsetY || 0) + (player.y - data.y);
+                player.offsetRotation = normalizeAngle((player.offsetRotation || 0) + normalizeAngle(player.rotation - data.rotation));
+
+                // Too far off to smooth nicely - just snap
+                if (Math.abs(player.offsetX) > 200 || Math.abs(player.offsetY) > 200) {
+                    player.offsetX = 0;
+                    player.offsetY = 0;
+                    player.offsetRotation = 0;
+                }
+            }
+
+            player.x = data.x;
+            player.y = data.y;
+            player.rotation = data.rotation;
+            player.vx = data.vx || 0;
+            player.vy = data.vy || 0;
+            player.rotationSpeed = data.rotationSpeed || 0;
+            player.hasReceivedUpdate = true;
+        }
+
+        function handleRemoteShoot(payload) {
+            const data = payload.payload;
+            if (data.playerId === myPlayerId) return;
+
+            const player = players.get(data.playerId);
+            if (!player || !player.isAlive) return;
+
+            applyRemoteState(player, data);
+
+            // Fire from the exact position/angle the shooter had, not our local estimate
+            createBullet(player.id, player.color, data.x, data.y, data.rotation);
+            createMuzzleFlash(
+                data.x + (player.offsetX || 0),
+                data.y + (player.offsetY || 0),
+                data.rotation,
+                player.color
+            );
         }
 
         function handleRemoteMove(payload) {
-            if (payload.payload.playerId === myPlayerId) return;
-            
-            const player = players.get(payload.payload.playerId);
+            const data = payload.payload;
+            if (data.playerId === myPlayerId) return;
+
+            const player = players.get(data.playerId);
             if (player && player.isAlive) {
-                updateRemotePlayerPosition(player, payload.payload);
+                applyRemoteState(player, data);
             }
         }
 
-        function updateRemotePlayerPosition(player, data) {
-            const now = Date.now();
-            
-            // Store target position for interpolation
-            player.targetX = data.x;
-            player.targetY = data.y;
-            player.targetRotation = data.rotation;
-            player.targetVx = data.vx || 0;
-            player.targetVy = data.vy || 0;
-            player.targetRotationSpeed = data.rotationSpeed || 0;
-            player.lastUpdateTime = now;
-            
-            // Performance-based position setting
-            if (!player.hasReceivedUpdate || devicePerformance === 'low') {
-                // For first update or low-performance devices, set position more directly
-                const directFactor = devicePerformance === 'low' ? 0.7 : 1.0;
-                
-                player.x = player.x + (data.x - player.x) * directFactor;
-                player.y = player.y + (data.y - player.y) * directFactor;
-                player.rotation = data.rotation;
-                player.vx = data.vx || 0;
-                player.vy = data.vy || 0;
-                player.rotationSpeed = data.rotationSpeed || 0;
-                player.hasReceivedUpdate = true;
-            }
-        }
+        function handleRemoteHit(payload) {
+            const { playerId, health } = payload.payload;
+            if (playerId === myPlayerId) return;
 
-        function interpolateRemotePlayers() {
-            const now = Date.now();
-            
-            players.forEach(player => {
-                if (player.id === myPlayerId || !player.isAlive || !player.hasReceivedUpdate) return;
-                
-                const timeSinceUpdate = now - (player.lastUpdateTime || 0);
-                
-                if (player.targetX !== undefined) {
-                    // Adaptive smoothing based on update frequency and distance
-                    const distance = Math.sqrt(
-                        Math.pow(player.targetX - player.x, 2) + 
-                        Math.pow(player.targetY - player.y, 2)
-                    );
-                    
-                    // Adjust smoothing based on distance and time
-                    let smoothFactor = 0.2; // Base smoothing
-                    
-                    if (distance > 50) {
-                        smoothFactor = 0.4; // Faster catch-up for large distances
-                    } else if (distance < 10) {
-                        smoothFactor = 0.1; // Slower for small movements
-                    }
-                    
-                    // Increase smoothing for older updates
-                    if (timeSinceUpdate > 100) {
-                        smoothFactor = Math.min(smoothFactor * 1.5, 0.6);
-                    }
-                    
-                    // Interpolate position with adaptive smoothing
-                    player.x += (player.targetX - player.x) * smoothFactor;
-                    player.y += (player.targetY - player.y) * smoothFactor;
-                    
-                    // Interpolate rotation (handle wrapping)
-                    let rotDiff = player.targetRotation - player.rotation;
-                    while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-                    while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-                    player.rotation += rotDiff * smoothFactor;
-                    
-                    // Interpolate velocity
-                    player.vx += (player.targetVx - player.vx) * smoothFactor;
-                    player.vy += (player.targetVy - player.vy) * smoothFactor;
-                    player.rotationSpeed += (player.targetRotationSpeed - player.rotationSpeed) * smoothFactor;
-                    
-                    // Enhanced prediction with velocity extrapolation
-                    if (timeSinceUpdate < 150) {
-                        const predictTime = Math.min(timeSinceUpdate, 33) / 1000;
-                        const velocityFactor = Math.max(0.5, 1 - timeSinceUpdate / 200);
-                        
-                        player.x += player.targetVx * predictTime * 60 * velocityFactor;
-                        player.y += player.targetVy * predictTime * 60 * velocityFactor;
-                        player.rotation += player.targetRotationSpeed * predictTime * 60 * velocityFactor;
-                    }
-                }
-            });
+            const player = players.get(playerId);
+            if (player && player.isAlive) {
+                player.health = Math.min(player.health, health);
+            }
         }
 
         // ===== BOT AI =====
         function botAI() {
             const now = Date.now();
-            
+
             players.forEach(player => {
                 if (!player.isBot || !player.isAlive) return;
 
                 let nearestEnemy = null;
                 let nearestDist = Infinity;
-                
+
                 players.forEach(other => {
                     if (other.id === player.id || !other.isAlive) return;
                     const dx = other.x - player.x;
@@ -1402,16 +1390,14 @@
                     const dx = nearestEnemy.x - player.x;
                     const dy = nearestEnemy.y - player.y;
                     const targetAngle = Math.atan2(dy, dx);
-                    
-                    let angleDiff = targetAngle - player.rotation;
-                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-                    
+
+                    const angleDiff = normalizeAngle(targetAngle - player.rotation);
+
                     if (Math.abs(angleDiff) < 0.4) {
                         player.lastBotShot = now;
-                        createBullet(player);
-                        createMuzzleFlash(player);
-                        
+                        createBullet(player.id, player.color, player.x, player.y, player.rotation);
+                        createMuzzleFlash(player.x, player.y, player.rotation, player.color);
+
                         player.vx -= Math.cos(player.rotation) * PHYSICS.RECOIL_FORCE;
                         player.vy -= Math.sin(player.rotation) * PHYSICS.RECOIL_FORCE;
                         player.rotationSpeed += (Math.random() - 0.5) * PHYSICS.ROTATION_RECOIL;
@@ -1420,155 +1406,308 @@
             });
         }
 
-        // ===== GAME LOOP (ORIGINAL PC PHYSICS) =====
+        // ===== DAMAGE & DEATH =====
+        // Online, each client is the authority for its own player: only the victim's screen
+        // decides a hit, then tells everyone. This keeps health and kills identical everywhere.
+        function applyDamage(player, shooterId) {
+            player.health -= 34;
+
+            if (player.health <= 0) {
+                killPlayer(player.id, shooterId);
+
+                if (!isOfflineMode && gameChannel) {
+                    gameChannel.send({
+                        type: 'broadcast',
+                        event: 'player_death',
+                        payload: {
+                            playerId: player.id,
+                            shooterId: shooterId,
+                            timestamp: Date.now()
+                        }
+                    });
+                }
+
+                queueDbUpdate(player.id, { is_alive: false, health: 0 });
+                checkGameEnd();
+            } else {
+                if (!isOfflineMode && gameChannel) {
+                    gameChannel.send({
+                        type: 'broadcast',
+                        event: 'hit',
+                        payload: {
+                            playerId: player.id,
+                            shooterId: shooterId,
+                            health: player.health
+                        }
+                    });
+                }
+
+                queueDbUpdate(player.id, { health: player.health });
+            }
+        }
+
+        function killPlayer(playerId, shooterId) {
+            const player = players.get(playerId);
+            if (!player || !player.isAlive) return false;
+
+            player.isAlive = false;
+            player.health = 0;
+
+            const shooter = players.get(shooterId);
+            if (shooter) shooter.kills = (shooter.kills || 0) + 1;
+
+            // Death explosion
+            const drawX = player.x + (player.offsetX || 0);
+            const drawY = player.y + (player.offsetY || 0);
+            for (let i = 0; i < 50; i++) {
+                particles.push({
+                    x: drawX,
+                    y: drawY,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    life: 80,
+                    maxLife: 80,
+                    color: player.color,
+                    size: Math.random() * 4 + 2
+                });
+            }
+            return true;
+        }
+
+        // ===== GAME LOOP (FIXED TIMESTEP) =====
+        // Physics always advances in fixed 60Hz steps no matter how fast the screen refreshes,
+        // so a 144Hz monitor and a 30fps phone simulate the exact same game speed.
+        const PHYSICS_STEP_MS = 1000 / 60;
+        const MAX_STEPS_PER_FRAME = 15;
+        const BROADCAST_INTERVAL_MS = 50;
+        let physicsAccumulator = 0;
         let lastPositionBroadcast = 0;
-        
+        let backgroundCanvas = null;
+
         function gameLoop(currentTime) {
             if (!currentTime) currentTime = performance.now();
-            
-            // FPS monitoring for performance adaptation
-            frameCount++;
-            if (currentTime - lastFpsCheck > 1000) {
-                currentFps = frameCount;
-                frameCount = 0;
-                lastFpsCheck = currentTime;
-                
-                // Adjust device performance classification
-                if (currentFps < 30) {
-                    devicePerformance = 'low';
-                } else if (currentFps < 50) {
-                    devicePerformance = 'medium';
-                } else {
-                    devicePerformance = 'high';
-                }
-            }
-            
-            // Calculate delta time for consistent physics when window loses focus
-            const deltaTime = Math.min((currentTime - lastFrameTime) / 16.67, 3); // Cap at 3x normal speed
+            if (!lastFrameTime) lastFrameTime = currentTime;
+
+            // Cap long pauses (tab switch, lag spike) instead of fast-forwarding through them
+            const elapsed = Math.min(currentTime - lastFrameTime, 250);
             lastFrameTime = currentTime;
-            
-            // Interpolate remote players for smooth movement with performance adaptation
-            if (!isOfflineMode) {
-                interpolateRemotePlayers();
+            physicsAccumulator += elapsed;
+
+            let steps = 0;
+            while (physicsAccumulator >= PHYSICS_STEP_MS && steps < MAX_STEPS_PER_FRAME) {
+                updateGame();
+                physicsAccumulator -= PHYSICS_STEP_MS;
+                steps++;
             }
-            // Background gradient
-            const gradient = ctx.createRadialGradient(
+            if (steps === MAX_STEPS_PER_FRAME) physicsAccumulator = 0;
+
+            broadcastMyState();
+            processPendingDbUpdates();
+            renderGame();
+
+            // Update UI
+            const aliveCount = Array.from(players.values()).filter(p => p.isAlive).length;
+            const myPlayer = players.get(myPlayerId);
+
+            document.getElementById('aliveCount').textContent = 'Players: ' + aliveCount;
+            if (myPlayer) {
+                document.getElementById('killCount').textContent = 'Kills: ' + (myPlayer.kills || 0);
+            }
+
+            if (!gameEnded) {
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function stepPlayerPhysics(player, isLocallyControlled) {
+            player.vy += PHYSICS.GRAVITY;
+
+            player.rotation += player.rotationSpeed;
+            player.rotationSpeed *= PHYSICS.ROTATION_DECAY;
+
+            player.x += player.vx;
+            player.y += player.vy;
+
+            player.vx *= PHYSICS.PLAYER_FRICTION;
+            player.vy *= PHYSICS.PLAYER_FRICTION;
+
+            // Wall collision with FIXED game boundaries
+            // (random spin only for players this screen controls; remote players get theirs from the network)
+            const margin = 30;
+
+            if (player.x < margin) {
+                player.x = margin;
+                player.vx = Math.abs(player.vx) * PHYSICS.WALL_BOUNCE;
+                if (isLocallyControlled) player.rotationSpeed += (Math.random() - 0.5) * 0.1;
+            }
+            if (player.x > GAME_WIDTH - margin) {
+                player.x = GAME_WIDTH - margin;
+                player.vx = -Math.abs(player.vx) * PHYSICS.WALL_BOUNCE;
+                if (isLocallyControlled) player.rotationSpeed += (Math.random() - 0.5) * 0.1;
+            }
+            if (player.y < margin) {
+                player.y = margin;
+                player.vy = Math.abs(player.vy) * PHYSICS.WALL_BOUNCE;
+                if (isLocallyControlled) player.rotationSpeed += (Math.random() - 0.5) * 0.1;
+            }
+            if (player.y > GAME_HEIGHT - margin) {
+                player.y = GAME_HEIGHT - margin;
+                player.vy = -Math.abs(player.vy) * PHYSICS.WALL_BOUNCE;
+                if (isLocallyControlled) player.rotationSpeed += (Math.random() - 0.5) * 0.1;
+            }
+        }
+
+        function updateGame() {
+            if (isOfflineMode) {
+                botAI();
+            }
+
+            players.forEach(player => {
+                if (!player.isAlive) return;
+
+                stepPlayerPhysics(player, isOfflineMode || player.id === myPlayerId);
+
+                // Fade out the visual correction for remote players
+                if (player.offsetX || player.offsetY || player.offsetRotation) {
+                    player.offsetX *= 0.85;
+                    player.offsetY *= 0.85;
+                    player.offsetRotation *= 0.85;
+                    if (Math.abs(player.offsetX) < 0.1) player.offsetX = 0;
+                    if (Math.abs(player.offsetY) < 0.1) player.offsetY = 0;
+                    if (Math.abs(player.offsetRotation) < 0.001) player.offsetRotation = 0;
+                }
+            });
+
+            bullets = bullets.filter(bullet => {
+                bullet.trail.push({ x: bullet.x, y: bullet.y });
+                if (bullet.trail.length > 10) bullet.trail.shift();
+
+                bullet.vy += PHYSICS.BULLET_GRAVITY;
+                bullet.x += bullet.vx;
+                bullet.y += bullet.vy;
+                bullet.life -= 1;
+                bullet.vx *= PHYSICS.BULLET_FRICTION;
+                bullet.vy *= PHYSICS.BULLET_FRICTION;
+
+                // Collision detection
+                for (const player of players.values()) {
+                    if (!player.isAlive || player.id === bullet.ownerId) continue;
+
+                    const dx = bullet.x - player.x;
+                    const dy = bullet.y - player.y;
+                    if (dx * dx + dy * dy >= 25 * 25) continue;
+
+                    // Hit particles
+                    for (let i = 0; i < 20; i++) {
+                        particles.push({
+                            x: bullet.x,
+                            y: bullet.y,
+                            vx: (Math.random() - 0.5) * 6,
+                            vy: (Math.random() - 0.5) * 6,
+                            life: 40,
+                            maxLife: 40,
+                            color: player.color,
+                            size: Math.random() * 3 + 1
+                        });
+                    }
+
+                    // Only the victim's own screen applies damage online (others just show the impact)
+                    if (isOfflineMode || player.id === myPlayerId) {
+                        applyDamage(player, bullet.ownerId);
+                    }
+                    return false;
+                }
+
+                // Remove bullets outside FIXED game boundaries
+                return bullet.x > -100 && bullet.x < GAME_WIDTH + 100 &&
+                       bullet.y > -100 && bullet.y < GAME_HEIGHT + 100 &&
+                       bullet.life > 0;
+            });
+
+            particles = particles.filter(particle => {
+                particle.vy += PHYSICS.BULLET_GRAVITY;
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.life -= 1;
+                particle.vx *= PHYSICS.PLAYER_FRICTION;
+                particle.vy *= PHYSICS.PLAYER_FRICTION;
+                return particle.life > 0;
+            });
+        }
+
+        function broadcastMyState() {
+            if (isOfflineMode || !gameChannel) return;
+
+            const player = players.get(myPlayerId);
+            if (!player || !player.isAlive) return;
+
+            const now = Date.now();
+            if (now - lastPositionBroadcast < BROADCAST_INTERVAL_MS) return;
+            lastPositionBroadcast = now;
+
+            gameChannel.send({
+                type: 'broadcast',
+                event: 'move',
+                payload: {
+                    ...getNetworkState(player),
+                    timestamp: now
+                }
+            });
+        }
+
+        // Background never changes, so draw it once and reuse it (big saving on phones)
+        function getBackground() {
+            if (backgroundCanvas) return backgroundCanvas;
+
+            backgroundCanvas = document.createElement('canvas');
+            backgroundCanvas.width = GAME_WIDTH;
+            backgroundCanvas.height = GAME_HEIGHT;
+            const bg = backgroundCanvas.getContext('2d');
+
+            const gradient = bg.createRadialGradient(
                 GAME_WIDTH / 2, GAME_HEIGHT / 2, 0,
                 GAME_WIDTH / 2, GAME_HEIGHT / 2, Math.max(GAME_WIDTH, GAME_HEIGHT) / 1.5
             );
             gradient.addColorStop(0, '#0a0a1f');
             gradient.addColorStop(1, '#000000');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            bg.fillStyle = gradient;
+            bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-            // Draw stars
             for (let i = 0; i < 100; i++) {
                 const x = (i * 123) % GAME_WIDTH;
                 const y = (i * 456) % GAME_HEIGHT;
                 const size = (i % 3) * 0.5 + 0.5;
-                ctx.fillStyle = 'rgba(255, 255, 255, ' + (0.3 + (i % 5) * 0.15) + ')';
-                ctx.beginPath();
-                ctx.arc(x, y, size, 0, Math.PI * 2);
-                ctx.fill();
+                bg.fillStyle = 'rgba(255, 255, 255, ' + (0.3 + (i % 5) * 0.15) + ')';
+                bg.beginPath();
+                bg.arc(x, y, size, 0, Math.PI * 2);
+                bg.fill();
             }
 
-            if (isOfflineMode) {
-                botAI();
-            }
+            return backgroundCanvas;
+        }
 
-            // Update players using ORIGINAL PC PHYSICS
+        function renderGame() {
+            ctx.drawImage(getBackground(), 0, 0);
+
             players.forEach(player => {
                 if (!player.isAlive) return;
 
-                // Apply physics with delta time compensation
-                const physicsMultiplier = isWindowFocused ? 1 : deltaTime;
-                
-                // Apply gravity
-                player.vy += PHYSICS.GRAVITY * physicsMultiplier;
-                
-                // Apply rotation
-                player.rotation += player.rotationSpeed * physicsMultiplier;
-                player.rotationSpeed *= Math.pow(PHYSICS.ROTATION_DECAY, physicsMultiplier);
-                
-                // Update position
-                player.x += player.vx * physicsMultiplier;
-                player.y += player.vy * physicsMultiplier;
-                
-                // Apply friction
-                player.vx *= Math.pow(PHYSICS.PLAYER_FRICTION, physicsMultiplier);
-                player.vy *= Math.pow(PHYSICS.PLAYER_FRICTION, physicsMultiplier);
-
-                // Wall collision with FIXED game boundaries
-                const margin = 30;
-                
-                if (player.x < margin) {
-                    player.x = margin;
-                    player.vx = Math.abs(player.vx) * PHYSICS.WALL_BOUNCE;
-                    player.rotationSpeed += (Math.random() - 0.5) * 0.1;
-                }
-                if (player.x > GAME_WIDTH - margin) {
-                    player.x = GAME_WIDTH - margin;
-                    player.vx = -Math.abs(player.vx) * PHYSICS.WALL_BOUNCE;
-                    player.rotationSpeed += (Math.random() - 0.5) * 0.1;
-                }
-                if (player.y < margin) {
-                    player.y = margin;
-                    player.vy = Math.abs(player.vy) * PHYSICS.WALL_BOUNCE;
-                    player.rotationSpeed += (Math.random() - 0.5) * 0.1;
-                }
-                if (player.y > GAME_HEIGHT - margin) {
-                    player.y = GAME_HEIGHT - margin;
-                    player.vy = -Math.abs(player.vy) * PHYSICS.WALL_BOUNCE;
-                    player.rotationSpeed += (Math.random() - 0.5) * 0.1;
-                }
-
-                // Broadcast position for my player with adaptive frequency
-                if (player.id === myPlayerId && !isOfflineMode && gameChannel && isWindowFocused) {
-                    const now = Date.now();
-                    
-                    // Adaptive broadcast frequency based on movement
-                    const velocity = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
-                    const rotSpeed = Math.abs(player.rotationSpeed);
-                    
-                    let broadcastInterval = 50; // Default 20fps
-                    
-                    if (velocity > 2 || rotSpeed > 0.05) {
-                        broadcastInterval = 25; // 40fps for fast movement
-                    } else if (velocity < 0.5 && rotSpeed < 0.01) {
-                        broadcastInterval = 100; // 10fps for slow/stationary
-                    }
-                    
-                    if (now - lastPositionBroadcast > broadcastInterval) {
-                        lastPositionBroadcast = now;
-                        gameChannel.send({
-                            type: 'broadcast',
-                            event: 'move',
-                            payload: {
-                                playerId: myPlayerId,
-                                x: Math.round(player.x * 100) / 100, // Reduce precision for network
-                                y: Math.round(player.y * 100) / 100,
-                                rotation: Math.round(player.rotation * 1000) / 1000,
-                                vx: Math.round(player.vx * 100) / 100,
-                                vy: Math.round(player.vy * 100) / 100,
-                                rotationSpeed: Math.round(player.rotationSpeed * 1000) / 1000,
-                                timestamp: now
-                            }
-                        });
-                    }
-                }
+                const x = player.x + (player.offsetX || 0);
+                const y = player.y + (player.offsetY || 0);
+                const rotation = player.rotation + (player.offsetRotation || 0);
 
                 // Draw shadow
                 ctx.save();
-                ctx.translate(player.x, player.y);
-                ctx.rotate(player.rotation);
+                ctx.translate(x, y);
+                ctx.rotate(rotation);
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
                 ctx.fillRect(-8, -7, 40, 16);
                 ctx.restore();
 
                 // Draw gun
                 ctx.save();
-                ctx.translate(player.x, player.y);
-                ctx.rotate(player.rotation);
+                ctx.translate(x, y);
+                ctx.rotate(rotation);
                 ctx.fillStyle = player.color;
                 ctx.fillRect(-12, -6, 38, 12);
                 ctx.fillStyle = '#222';
@@ -1579,22 +1718,22 @@
                 ctx.restore();
 
                 // Draw glow
-                const glowGradient = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, 50);
+                const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, 50);
                 glowGradient.addColorStop(0, player.color + '60');
                 glowGradient.addColorStop(1, 'transparent');
                 ctx.fillStyle = glowGradient;
-                ctx.fillRect(player.x - 50, player.y - 50, 100, 100);
+                ctx.fillRect(x - 50, y - 50, 100, 100);
 
                 // Draw health bar
                 const healthBarWidth = 50;
                 const healthBarHeight = 5;
-                const healthPercent = player.health / 100;
-                
+                const healthPercent = Math.max(player.health, 0) / 100;
+
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(player.x - healthBarWidth / 2, player.y - 40, healthBarWidth, healthBarHeight);
-                
+                ctx.fillRect(x - healthBarWidth / 2, y - 40, healthBarWidth, healthBarHeight);
+
                 ctx.fillStyle = healthPercent > 0.5 ? '#4ade80' : healthPercent > 0.25 ? '#fbbf24' : '#ef4444';
-                ctx.fillRect(player.x - healthBarWidth / 2, player.y - 40, healthBarWidth * healthPercent, healthBarHeight);
+                ctx.fillRect(x - healthBarWidth / 2, y - 40, healthBarWidth * healthPercent, healthBarHeight);
 
                 // Draw name
                 ctx.fillStyle = '#fff';
@@ -1602,25 +1741,11 @@
                 ctx.textAlign = 'center';
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                 ctx.shadowBlur = 4;
-                ctx.fillText(player.player_name, player.x, player.y - 48);
+                ctx.fillText(player.player_name, x, y - 48);
                 ctx.shadowBlur = 0;
             });
 
-            // Update bullets using ORIGINAL PC PHYSICS with delta time
-            bullets = bullets.filter(bullet => {
-                bullet.trail.push({ x: bullet.x, y: bullet.y });
-                if (bullet.trail.length > 10) bullet.trail.shift();
-
-                // Apply bullet physics with delta time compensation
-                const physicsMultiplier = isWindowFocused ? 1 : deltaTime;
-                
-                bullet.vy += PHYSICS.BULLET_GRAVITY * physicsMultiplier;
-                bullet.x += bullet.vx * physicsMultiplier;
-                bullet.y += bullet.vy * physicsMultiplier;
-                bullet.life -= physicsMultiplier;
-                bullet.vx *= Math.pow(PHYSICS.BULLET_FRICTION, physicsMultiplier);
-                bullet.vy *= Math.pow(PHYSICS.BULLET_FRICTION, physicsMultiplier);
-
+            bullets.forEach(bullet => {
                 // Draw trail
                 ctx.strokeStyle = bullet.color;
                 ctx.lineWidth = 4;
@@ -1653,121 +1778,16 @@
                 ctx.beginPath();
                 ctx.arc(bullet.x, bullet.y, 15, 0, Math.PI * 2);
                 ctx.fill();
-
-                // Collision detection
-                let hitSomeone = false;
-                players.forEach(player => {
-                    if (!player.isAlive || player.id === bullet.ownerId) return;
-                    
-                    const dx = bullet.x - player.x;
-                    const dy = bullet.y - player.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (dist < 25) {
-                        player.health -= 34;
-                        hitSomeone = true;
-                        
-                        // Hit particles
-                        for (let i = 0; i < 20; i++) {
-                            particles.push({
-                                x: bullet.x,
-                                y: bullet.y,
-                                vx: (Math.random() - 0.5) * 6,
-                                vy: (Math.random() - 0.5) * 6,
-                                life: 40,
-                                maxLife: 40,
-                                color: player.color,
-                                size: Math.random() * 3 + 1
-                            });
-                        }
-                        
-                        if (player.health <= 0) {
-                            player.isAlive = false;
-                            const shooter = players.get(bullet.ownerId);
-                            if (shooter) shooter.kills = (shooter.kills || 0) + 1;
-                            
-                            // Death explosion
-                            for (let i = 0; i < 50; i++) {
-                                particles.push({
-                                    x: player.x,
-                                    y: player.y,
-                                    vx: (Math.random() - 0.5) * 8,
-                                    vy: (Math.random() - 0.5) * 8,
-                                    life: 80,
-                                    maxLife: 80,
-                                    color: player.color,
-                                    size: Math.random() * 4 + 2
-                                });
-                            }
-
-                            // Broadcast death immediately via real-time
-                            if (!isOfflineMode && gameChannel) {
-                                gameChannel.send({
-                                    type: 'broadcast',
-                                    event: 'player_death',
-                                    payload: {
-                                        playerId: player.id,
-                                        shooterId: bullet.ownerId,
-                                        timestamp: Date.now()
-                                    }
-                                });
-                            }
-                            
-                            // Queue database update (non-blocking)
-                            queueDbUpdate(player.id, { is_alive: false, health: 0 });
-                            
-                            checkGameEnd();
-                        } else {
-                            // Queue health update (batched)
-                            queueDbUpdate(player.id, { health: player.health });
-                        }
-                    }
-                });
-
-                if (hitSomeone) return false;
-
-                // Remove bullets outside FIXED game boundaries
-                return bullet.x > -100 && bullet.x < GAME_WIDTH + 100 && 
-                       bullet.y > -100 && bullet.y < GAME_HEIGHT + 100 && 
-                       bullet.life > 0;
             });
 
-            // Update particles with delta time
-            particles = particles.filter(particle => {
-                const physicsMultiplier = isWindowFocused ? 1 : deltaTime;
-                
-                particle.vy += PHYSICS.BULLET_GRAVITY * physicsMultiplier;
-                particle.x += particle.vx * physicsMultiplier;
-                particle.y += particle.vy * physicsMultiplier;
-                particle.life -= physicsMultiplier;
-                particle.vx *= Math.pow(PHYSICS.PLAYER_FRICTION, physicsMultiplier);
-                particle.vy *= Math.pow(PHYSICS.PLAYER_FRICTION, physicsMultiplier);
-
-                const alpha = particle.life / particle.maxLife;
+            particles.forEach(particle => {
+                const alpha = Math.max(particle.life / particle.maxLife, 0);
                 const alphaHex = Math.floor(alpha * 255).toString(16).padStart(2, '0');
                 ctx.fillStyle = particle.color + alphaHex;
                 ctx.beginPath();
                 ctx.arc(particle.x, particle.y, particle.size || 2, 0, Math.PI * 2);
                 ctx.fill();
-
-                return particle.life > 0;
             });
-
-            // Process pending database updates
-            processPendingDbUpdates();
-            
-            // Update UI
-            const aliveCount = Array.from(players.values()).filter(p => p.isAlive).length;
-            const myPlayer = players.get(myPlayerId);
-            
-            document.getElementById('aliveCount').textContent = 'Players: ' + aliveCount;
-            if (myPlayer) {
-                document.getElementById('killCount').textContent = 'Kills: ' + (myPlayer.kills || 0);
-            }
-
-            if (!gameEnded) {
-                animationId = requestAnimationFrame(gameLoop);
-            }
         }
 
         // ===== GAME END =====
@@ -1860,35 +1880,28 @@
             
             lastDbUpdate = now;
             
-            // Process all pending updates in batch
-            const updates = Array.from(pendingDbUpdates.entries()).map(([playerId, data]) => {
-                return supabaseClient
+            // Take the queued updates now so anything queued while these are in flight isn't lost
+            const batch = Array.from(pendingDbUpdates.entries());
+            pendingDbUpdates.clear();
+
+            // Execute all updates concurrently
+            batch.forEach(([playerId, data]) => {
+                supabaseClient
                     .from('recoil_players')
                     .update(data)
-                    .eq('id', playerId);
-            });
-            
-            // Execute all updates concurrently
-            Promise.allSettled(updates).then(() => {
-                pendingDbUpdates.clear();
+                    .eq('id', playerId)
+                    .then(() => {});
             });
         }
 
         function handleRemotePlayerDeath(payload) {
             const { playerId, shooterId } = payload.payload;
             
-            const player = players.get(playerId);
-            const shooter = players.get(shooterId);
-            
-            if (player) {
-                player.isAlive = false;
-                player.health = 0;
-            }
-            
-            if (shooter) {
-                shooter.kills = (shooter.kills || 0) + 1;
-            }
-            
+            if (playerId === myPlayerId) return;
+
+            // killPlayer ignores duplicates, so a kill is only ever counted once
+            if (!killPlayer(playerId, shooterId)) return;
+
             // Check for game end after remote death
             setTimeout(() => checkGameEnd(), 100);
         }
