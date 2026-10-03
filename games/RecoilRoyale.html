@@ -2167,7 +2167,7 @@
         const PHYSICS = {
             GRAVITY: 0.015,              // Gravity force (restored from original)
             RECOIL_FORCE: 8,             // Shooting recoil (restored)
-            BULLET_SPEED: 3,             // Bullet velocity (restored)
+            BULLET_SPEED: 7,             // Bullet velocity ("Normal" speed)
             PLAYER_FRICTION: 0.99,       // Velocity decay (restored)
             ROTATION_DECAY: 0.98,        // Rotation slowdown (restored)
             ROTATION_RECOIL: 0.08,       // Rotation from shooting (restored)
@@ -2813,7 +2813,7 @@
 
         // ===== MATCH RULES =====
         const DEFAULT_SETTINGS = { bulletSpeed: 'normal', selfDamage: false };
-        const BULLET_SPEEDS = { normal: PHYSICS.BULLET_SPEED, fast: PHYSICS.BULLET_SPEED * 1.5 };
+        const BULLET_SPEEDS = { normal: PHYSICS.BULLET_SPEED, fast: 11 };
         const SETTINGS_KEY = 'recoil_royale_settings';
 
         function sanitizeSettings(raw) {
