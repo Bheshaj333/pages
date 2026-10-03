@@ -1240,7 +1240,7 @@
             visibility: visible;
         }
 
-        .fight-splash span {
+        .fight-splash .fight-word {
             position: relative;
             font-family: var(--display);
             font-size: clamp(64px, 16vw, 190px);
@@ -1253,7 +1253,7 @@
             opacity: 0;
         }
 
-        .fight-splash.play span {
+        .fight-splash.play .fight-word {
             animation: splashZoom 1.4s var(--ease-out) forwards;
         }
 
@@ -1541,7 +1541,175 @@
         }
 
         .winner-actions {
+            display: grid;
+            gap: 10px;
             animation: screenIn 0.6s 1.3s var(--ease-out) both;
+        }
+
+        /* ===================== MATCH RULES ===================== */
+        .settings {
+            margin: 0 0 18px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--line);
+            text-align: left;
+        }
+
+        .settings-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .settings-note {
+            font-size: 10px;
+            letter-spacing: 0.14em;
+            color: var(--gold);
+        }
+
+        .setting {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 9px 0;
+        }
+
+        .setting + .setting {
+            border-top: 1px solid var(--line);
+        }
+
+        .setting-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .setting-icon {
+            flex: none;
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            font-size: 17px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .setting-text b {
+            display: block;
+            font-size: 14px;
+        }
+
+        .setting-text span {
+            display: block;
+            font-size: 12px;
+            line-height: 1.3;
+            color: var(--muted);
+        }
+
+        .seg {
+            flex: none;
+            display: inline-grid;
+            grid-auto-flow: column;
+            grid-auto-columns: 1fr;
+            padding: 3px;
+            border-radius: 11px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--line);
+        }
+
+        .seg button {
+            padding: 8px 11px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            color: var(--muted);
+            transition: background 0.25s, color 0.25s, box-shadow 0.25s, transform 0.15s;
+        }
+
+        .seg button:active {
+            transform: scale(0.94);
+        }
+
+        .seg button.active {
+            color: #1d1000;
+            background: linear-gradient(135deg, #ffe066, #ff8a1f);
+            box-shadow: 0 4px 14px -4px rgba(255, 130, 30, 0.75);
+        }
+
+        .seg button.active.danger {
+            color: #fff;
+            background: linear-gradient(135deg, #ff8fa3, #e11d48);
+            box-shadow: 0 4px 14px -4px rgba(225, 29, 72, 0.8);
+        }
+
+        .settings.locked .seg button {
+            cursor: default;
+        }
+
+        .settings.locked .seg button:active {
+            transform: none;
+        }
+
+        .settings.flash {
+            animation: settingsFlash 0.7s ease-out;
+        }
+
+        @keyframes settingsFlash {
+            30% { border-color: rgba(255, 210, 63, 0.7); box-shadow: 0 0 30px -8px rgba(255, 210, 63, 0.7); }
+        }
+
+        #offlineTab .settings {
+            margin-bottom: 14px;
+        }
+
+        /* rule chips under FIGHT! */
+        .fight-inner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .fight-rules {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 6px;
+            opacity: 0;
+        }
+
+        .fight-splash.play .fight-rules {
+            animation: rulesIn 1.4s var(--ease-out) forwards;
+        }
+
+        .fight-rule {
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            color: var(--gold);
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 210, 63, 0.45);
+        }
+
+        @keyframes rulesIn {
+            0% { opacity: 0; transform: translateY(12px); }
+            25%, 75% { opacity: 1; transform: none; }
+            100% { opacity: 0; }
         }
 
         /* defeat variant */
@@ -1702,6 +1870,9 @@
             .players-list { gap: 8px; }
             .player-item { padding: 10px; gap: 10px; }
             .player-orb { width: 30px; height: 30px; }
+            .setting-text span { display: none; } /* keep each rule on one tidy line */
+            .setting-icon { width: 30px; height: 30px; font-size: 15px; }
+            .seg button { padding: 8px 9px; }
         }
 
         /* Phones in landscape: compact HUD so it doesn't cover the arena */
@@ -1818,6 +1989,29 @@
                             <span class="field-label">Pilot name</span>
                             <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
                         </label>
+                        <div class="settings" id="offlineSettings">
+                        <div class="settings-head"><span>Match rules</span><span class="settings-note" data-role="note">Your call</span></div>
+                        <div class="setting">
+                            <div class="setting-label">
+                                <div class="setting-icon">⚡</div>
+                                <div class="setting-text"><b>Bullet speed</b><span>How fast shots fly</span></div>
+                            </div>
+                            <div class="seg" data-setting="bulletSpeed">
+                                <button type="button" data-value="normal">Normal</button>
+                                <button type="button" data-value="fast">Fast</button>
+                            </div>
+                        </div>
+                        <div class="setting">
+                            <div class="setting-label">
+                                <div class="setting-icon">🎯</div>
+                                <div class="setting-text"><b>Own bullets</b><span>Can your shots hit you?</span></div>
+                            </div>
+                            <div class="seg" data-setting="selfDamage">
+                                <button type="button" data-value="off">Safe</button>
+                                <button type="button" data-value="on" data-danger="true">Hurt me</button>
+                            </div>
+                        </div>
+                    </div>
                         <button type="button" class="btn btn-primary" onclick="startOfflineGame()">
                             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>
                             Play vs Bots
@@ -1852,6 +2046,30 @@
                     <strong><span id="lobbyCount">0</span> / <span id="lobbyMax">6</span></strong>
                 </div>
                 <div class="players-list" id="playersList"></div>
+
+                <div class="settings" id="lobbySettings">
+                        <div class="settings-head"><span>Match rules</span><span class="settings-note" data-role="note">Host picks</span></div>
+                        <div class="setting">
+                            <div class="setting-label">
+                                <div class="setting-icon">⚡</div>
+                                <div class="setting-text"><b>Bullet speed</b><span>How fast shots fly</span></div>
+                            </div>
+                            <div class="seg" data-setting="bulletSpeed">
+                                <button type="button" data-value="normal">Normal</button>
+                                <button type="button" data-value="fast">Fast</button>
+                            </div>
+                        </div>
+                        <div class="setting">
+                            <div class="setting-label">
+                                <div class="setting-icon">🎯</div>
+                                <div class="setting-text"><b>Own bullets</b><span>Can your shots hit you?</span></div>
+                            </div>
+                            <div class="seg" data-setting="selfDamage">
+                                <button type="button" data-value="off">Safe</button>
+                                <button type="button" data-value="on" data-danger="true">Hurt me</button>
+                            </div>
+                        </div>
+                    </div>
 
                 <div class="lobby-actions">
                     <div id="hostControls" style="display: none;">
@@ -1890,7 +2108,12 @@
                     <div class="elim-sub">Spectating · last pilot floating wins</div>
                 </div>
             </div>
-            <div class="fight-splash" id="fightSplash"><span>FIGHT!</span></div>
+            <div class="fight-splash" id="fightSplash">
+                <div class="fight-inner">
+                    <span class="fight-word">FIGHT!</span>
+                    <div class="fight-rules" id="fightRules"></div>
+                </div>
+            </div>
         </div>
 
         <div id="winnerScreen" class="screen">
@@ -1906,10 +2129,11 @@
                     <div class="stat-card" style="--i:2"><div class="big" id="matchTime">0:00</div><div class="small">Match time</div></div>
                 </div>
                 <div class="winner-actions">
-                    <button type="button" class="btn btn-primary" onclick="backToMenu()">
+                    <button type="button" class="btn btn-primary" onclick="winnerPrimaryAction()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
-                        Back to Menu
+                        <span id="winnerPrimaryLabel">Back to Lobby</span>
                     </button>
+                    <button type="button" class="btn btn-ghost" onclick="leaveToMenu()">Main Menu</button>
                 </div>
             </div>
         </div>
@@ -2053,15 +2277,14 @@
                 myPlayerId = session.myPlayerId;
                 currentRoom = room;
                 roomCode = session.roomCode;
-                isHost = session.isHost;
+                isHost = room.host_id === myPlayerId; // host may have changed while we were away
 
                 subscribeToRoom(room.id);
 
                 if (room.status === 'waiting') {
                     setRoomCodeDisplay(roomCode);
-                    if (isHost) {
-                        document.getElementById('hostControls').style.display = 'block';
-                    }
+                    document.getElementById('hostControls').style.display = isHost ? 'block' : 'none';
+                    renderAllSettings();
                     await loadPlayers(room.id);
                     switchScreen('lobby');
                 } else if (room.status === 'playing') {
@@ -2294,20 +2517,401 @@
 
         async function confirmLeaveGame() {
             document.getElementById('confirmLeaveModal').classList.remove('active');
-            
+
+            if (isOfflineMode) {
+                backToMenu();
+                return;
+            }
+            await leaveRoom();
+        }
+
+        async function leaveRoom() {
             if (currentRoom && myPlayerId) {
-                await supabaseClient.from('recoil_players').delete().eq('id', myPlayerId);
-                if (isHost) {
-                    await supabaseClient.from('recoil_rooms').delete().eq('id', currentRoom.id);
+                try {
+                    if (isHost) {
+                        // Hand the room to a random remaining player instead of closing it on everyone
+                        const { data: others } = await supabaseClient
+                            .from('recoil_players')
+                            .select('id')
+                            .eq('room_id', currentRoom.id)
+                            .neq('id', myPlayerId);
+
+                        if (others && others.length) {
+                            const nextHost = others[Math.floor(Math.random() * others.length)].id;
+                            await supabaseClient.from('recoil_rooms').update({ host_id: nextHost }).eq('id', currentRoom.id);
+                        } else {
+                            await supabaseClient.from('recoil_rooms').delete().eq('id', currentRoom.id);
+                        }
+                    }
+
+                    // Mid-match: tell everyone right away so the round can still finish without us
+                    if (currentScreen === 'game' && gameChannel && players.get(myPlayerId)?.isAlive) {
+                        gameChannel.send({
+                            type: 'broadcast',
+                            event: 'player_death',
+                            payload: { playerId: myPlayerId, shooterId: null, reason: 'left', timestamp: Date.now() }
+                        });
+                    }
+
+                    await supabaseClient.from('recoil_players').delete().eq('id', myPlayerId);
+                } catch (error) {
+                    console.error('Error leaving room:', error);
                 }
             }
-            
+
+            unsubscribeFromRoom();
+            clearSession();
+            backToMenu();
+        }
+
+        function unsubscribeFromRoom() {
             if (roomSubscription) supabaseClient.removeChannel(roomSubscription);
             if (playerSubscription) supabaseClient.removeChannel(playerSubscription);
             if (gameChannel) supabaseClient.removeChannel(gameChannel);
-            
-            clearSession();
-            backToMenu();
+            roomSubscription = playerSubscription = gameChannel = null;
+            presenceReady = false;
+            presentIds = new Set();
+            absenceTimers.forEach(timer => clearTimeout(timer));
+            absenceTimers.clear();
+        }
+
+        // Clear everything left over from the last match (keeps room membership)
+        function resetLocalGameState() {
+            if (animationId) cancelAnimationFrame(animationId);
+            animationId = null;
+            players.clear();
+            bullets = [];
+            particles = [];
+            gameEnded = false;
+            pendingDbUpdates.clear();
+        }
+
+        // ===== AFTER A MATCH =====
+        function winnerPrimaryAction() {
+            if (isOfflineMode) playAgainOffline();
+            else backToLobby();
+        }
+
+        function leaveToMenu() {
+            if (isOfflineMode) backToMenu();
+            else leaveRoom();
+        }
+
+        function playAgainOffline() {
+            resetLocalGameState();
+            startOfflineGame();
+        }
+
+        async function backToLobby() {
+            if (!currentRoom) {
+                backToMenu();
+                return;
+            }
+
+            const { data: room } = await supabaseClient
+                .from('recoil_rooms')
+                .select('*')
+                .eq('id', currentRoom.id)
+                .maybeSingle();
+
+            if (!room) {
+                showToast('That room has closed');
+                unsubscribeFromRoom();
+                backToMenu();
+                return;
+            }
+
+            resetLocalGameState();
+            currentRoom = room;
+            applyHostChange(room.host_id, { silent: true });
+
+            if (room.status === 'playing') {
+                // The next round already started - jump straight in
+                await startRoundFromRoom();
+                return;
+            }
+
+            setRoomCodeDisplay(roomCode);
+            document.getElementById('hostControls').style.display = isHost ? 'block' : 'none';
+            renderAllSettings();
+            await loadPlayers(room.id);
+            saveSession();
+            switchScreen('lobby');
+        }
+
+        // Host only: put the room back in the lobby with fresh stats so everyone can go again
+        async function resetRoomForNextRound() {
+            if (!currentRoom || !isHost || isOfflineMode) return;
+            pendingDbUpdates.clear();
+            try {
+                await supabaseClient
+                    .from('recoil_players')
+                    .update({ is_alive: true, health: 100, kills: 0 })
+                    .eq('room_id', currentRoom.id);
+                await supabaseClient
+                    .from('recoil_rooms')
+                    .update({ status: 'waiting' })
+                    .eq('id', currentRoom.id);
+                currentRoom.status = 'waiting';
+            } catch (error) {
+                console.error('Error resetting room:', error);
+            }
+        }
+
+        async function startRoundFromRoom() {
+            if (!currentRoom) return;
+            resetLocalGameState();
+            await loadPlayersForGame(currentRoom.id);
+            switchScreen('game');
+            initGame();
+        }
+
+        // ===== HOST HANDOVER =====
+        function applyHostChange(newHostId, options = {}) {
+            if (!currentRoom || !newHostId) return;
+            const changed = currentRoom.host_id !== newHostId;
+            const wasHost = isHost;
+            currentRoom.host_id = newHostId;
+            isHost = newHostId === myPlayerId;
+            if (!changed && wasHost === isHost) return;
+
+            saveSession();
+            document.getElementById('hostControls').style.display = isHost ? 'block' : 'none';
+            renderAllSettings();
+
+            if (!options.silent) {
+                if (isHost) {
+                    showToast('You are now the host 👑', 'info');
+                } else {
+                    const name = getPlayerName(newHostId);
+                    showToast((name || 'Someone') + ' is now the host 👑', 'info');
+                }
+            }
+
+            if (isHost && !wasHost) {
+                lobbySettings = sanitizeSettings(lobbySettings);
+                trackPresence();
+                removeAbsentPlayers();
+                if (currentScreen === 'game') checkGameEnd();
+            }
+
+            if (currentScreen === 'lobby') loadPlayers(currentRoom.id);
+        }
+
+        function getPlayerName(id) {
+            const inGame = players.get(id);
+            if (inGame) return inGame.player_name;
+            const inLobby = lobbyPlayers.find(p => p.id === id);
+            return inLobby ? inLobby.player_name : '';
+        }
+
+        // ===== PRESENCE: notice players (and hosts) who close the tab =====
+        const PRESENCE_GRACE_MS = 8000; // long enough to survive a page refresh
+        let presentIds = new Set();
+        let presenceReady = false;
+        let presenceSubscribed = false;
+        const absenceTimers = new Map();
+        let lobbyPlayers = [];
+
+        function getRoomMemberIds() {
+            const ids = new Set(lobbyPlayers.map(p => p.id));
+            if (!isOfflineMode) players.forEach((p, id) => ids.add(id));
+            return ids;
+        }
+
+        function trackPresence() {
+            if (!gameChannel || !presenceSubscribed || typeof gameChannel.track !== 'function') return;
+            gameChannel.track({
+                name: playerName,
+                settings: isHost ? lobbySettings : null
+            }).catch(() => {});
+        }
+
+        function onPresenceSync() {
+            if (!gameChannel || !currentRoom) return;
+            const state = gameChannel.presenceState();
+            presentIds = new Set(Object.keys(state));
+            if (presentIds.has(myPlayerId)) presenceReady = true;
+            if (!presenceReady) return;
+
+            // Non-hosts follow the host's match rules
+            if (!isHost) {
+                const hostEntry = state[currentRoom.host_id] && state[currentRoom.host_id][0];
+                if (hostEntry && hostEntry.settings) applyLobbySettings(hostEntry.settings);
+            }
+
+            getRoomMemberIds().forEach(id => {
+                if (id === myPlayerId) return;
+                if (presentIds.has(id)) {
+                    if (absenceTimers.has(id)) {
+                        clearTimeout(absenceTimers.get(id));
+                        absenceTimers.delete(id);
+                    }
+                } else if (!absenceTimers.has(id)) {
+                    absenceTimers.set(id, setTimeout(() => {
+                        absenceTimers.delete(id);
+                        if (!presentIds.has(id)) handlePlayerGone(id);
+                    }, PRESENCE_GRACE_MS));
+                }
+            });
+        }
+
+        function hashString(text) {
+            let h = 0;
+            for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
+            return Math.abs(h);
+        }
+
+        async function handlePlayerGone(id) {
+            if (!currentRoom) return;
+
+            if (id === currentRoom.host_id) {
+                // Every remaining client computes the same "random" pick, and only that player claims it
+                const candidates = [...presentIds].filter(x => x !== id && getRoomMemberIds().has(x)).sort();
+                if (!candidates.length) return;
+                const chosen = candidates[hashString(currentRoom.id + id) % candidates.length];
+                if (chosen !== myPlayerId) return;
+
+                const { error } = await supabaseClient
+                    .from('recoil_rooms')
+                    .update({ host_id: myPlayerId })
+                    .eq('id', currentRoom.id)
+                    .eq('host_id', id);
+                if (!error) {
+                    applyHostChange(myPlayerId);
+                    removeGonePlayer(id);
+                }
+                return;
+            }
+
+            if (isHost) removeGonePlayer(id);
+        }
+
+        function removeAbsentPlayers() {
+            if (!presenceReady) return;
+            getRoomMemberIds().forEach(id => {
+                if (id !== myPlayerId && !presentIds.has(id)) removeGonePlayer(id);
+            });
+        }
+
+        async function removeGonePlayer(id) {
+            const inGame = players.get(id);
+            if (currentScreen === 'game' && inGame && inGame.isAlive) {
+                killPlayer(id, null, 'left');
+                if (gameChannel) {
+                    gameChannel.send({
+                        type: 'broadcast',
+                        event: 'player_death',
+                        payload: { playerId: id, shooterId: null, reason: 'left', timestamp: Date.now() }
+                    });
+                }
+                checkGameEnd();
+            }
+            lobbyPlayers = lobbyPlayers.filter(p => p.id !== id);
+            await supabaseClient.from('recoil_players').delete().eq('id', id);
+        }
+
+        // ===== MATCH RULES =====
+        const DEFAULT_SETTINGS = { bulletSpeed: 'normal', selfDamage: false };
+        const BULLET_SPEEDS = { normal: PHYSICS.BULLET_SPEED, fast: PHYSICS.BULLET_SPEED * 1.5 };
+        const SETTINGS_KEY = 'recoil_royale_settings';
+
+        function sanitizeSettings(raw) {
+            const value = raw || {};
+            return {
+                bulletSpeed: BULLET_SPEEDS[value.bulletSpeed] ? value.bulletSpeed : DEFAULT_SETTINGS.bulletSpeed,
+                selfDamage: value.selfDamage === true
+            };
+        }
+
+        function loadPreferredSettings() {
+            try { return sanitizeSettings(JSON.parse(localStorage.getItem(SETTINGS_KEY))); }
+            catch (e) { return { ...DEFAULT_SETTINGS }; }
+        }
+
+        let preferredSettings = loadPreferredSettings(); // your own choice (offline + rooms you host)
+        let lobbySettings = { ...preferredSettings };     // what the current room uses
+        let activeSettings = { ...DEFAULT_SETTINGS };     // locked in when a match starts
+
+        function savePreferredSettings() {
+            try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(preferredSettings)); } catch (e) {}
+        }
+
+        function renderSettings(containerId, settings, editable, note) {
+            const box = document.getElementById(containerId);
+            if (!box) return;
+            box.classList.toggle('locked', !editable);
+            const noteEl = box.querySelector('[data-role="note"]');
+            if (noteEl && note) noteEl.textContent = note;
+            box.querySelectorAll('.seg').forEach(seg => {
+                const key = seg.dataset.setting;
+                const current = key === 'selfDamage' ? (settings.selfDamage ? 'on' : 'off') : settings[key];
+                seg.querySelectorAll('button').forEach(btn => {
+                    const active = btn.dataset.value === current;
+                    btn.classList.toggle('active', active);
+                    btn.classList.toggle('danger', active && btn.dataset.danger === 'true');
+                    btn.disabled = !editable;
+                    btn.setAttribute('aria-pressed', active);
+                });
+            });
+        }
+
+        function renderAllSettings() {
+            renderSettings('offlineSettings', preferredSettings, true, 'Your call');
+            renderSettings('lobbySettings', lobbySettings, isHost, isHost ? 'You pick' : 'Host picks');
+        }
+
+        function applyLobbySettings(raw) {
+            const next = sanitizeSettings(raw);
+            if (next.bulletSpeed === lobbySettings.bulletSpeed && next.selfDamage === lobbySettings.selfDamage) return;
+            lobbySettings = next;
+            // Rejoined mid-match (e.g. after a refresh): adopt the room's rules so bullets match everyone else
+            if (currentScreen === 'game' && !isOfflineMode) activeSettings = { ...next };
+            renderAllSettings();
+            if (currentScreen === 'lobby') replayClass(document.getElementById('lobbySettings'), 'flash');
+        }
+
+        function handleSettingClick(containerId, key, value) {
+            const parsed = key === 'selfDamage' ? value === 'on' : value;
+            if (containerId === 'lobbySettings') {
+                if (!isHost) {
+                    showToast('Only the host can change match rules', 'info');
+                    return;
+                }
+                lobbySettings = sanitizeSettings({ ...lobbySettings, [key]: parsed });
+                preferredSettings = { ...lobbySettings };
+                trackPresence();
+                if (gameChannel) {
+                    gameChannel.send({ type: 'broadcast', event: 'match_settings', payload: { settings: lobbySettings } });
+                }
+            } else {
+                preferredSettings = sanitizeSettings({ ...preferredSettings, [key]: parsed });
+            }
+            savePreferredSettings();
+            renderAllSettings();
+        }
+
+        ['offlineSettings', 'lobbySettings'].forEach(containerId => {
+            const box = document.getElementById(containerId);
+            if (!box) return;
+            box.addEventListener('click', (e) => {
+                const btn = e.target.closest('.seg button');
+                if (!btn) return;
+                handleSettingClick(containerId, btn.closest('.seg').dataset.setting, btn.dataset.value);
+            });
+            // disabled buttons swallow clicks, so explain the lock from the container instead
+            box.addEventListener('pointerdown', (e) => {
+                if (containerId === 'lobbySettings' && !isHost && e.target.closest('.seg')) {
+                    showToast('Only the host can change match rules', 'info');
+                }
+            });
+        });
+
+        function describeRules(settings) {
+            const rules = [];
+            if (settings.bulletSpeed === 'fast') rules.push('⚡ FAST BULLETS');
+            if (settings.selfDamage) rules.push('🎯 OWN BULLETS HURT');
+            return rules;
         }
 
         function backToMenu() {
@@ -2372,9 +2976,11 @@
                 currentRoom = roomResult.data;
                 roomCode = code;
                 isHost = true;
-                
+                lobbySettings = { ...preferredSettings };
+
                 setRoomCodeDisplay(code);
                 document.getElementById('hostControls').style.display = 'block';
+                renderAllSettings();
                 
                 subscribeToRoom(roomResult.data.id);
                 await loadPlayers(roomResult.data.id);
@@ -2413,15 +3019,20 @@
                     return;
                 }
 
-                const countResult = await supabaseClient
+                const { data: existingPlayers } = await supabaseClient
                     .from('recoil_players')
-                    .select('*', { count: 'exact', head: true })
+                    .select('color')
                     .eq('room_id', roomResult.data.id);
+                const playerCount = existingPlayers ? existingPlayers.length : 0;
 
-                if (countResult.count >= roomResult.data.max_players) {
+                if (playerCount >= roomResult.data.max_players) {
                     showToast('Room is full!');
                     return;
                 }
+
+                // First color nobody in the room is using
+                const usedColors = new Set((existingPlayers || []).map(p => p.color));
+                const freeColor = playerColors.find(c => !usedColors.has(c)) || playerColors[playerCount % playerColors.length];
 
                 myPlayerId = crypto.randomUUID();
 
@@ -2431,7 +3042,7 @@
                         id: myPlayerId,
                         room_id: roomResult.data.id,
                         player_name: playerName,
-                        color: playerColors[countResult.count % playerColors.length],
+                        color: freeColor,
                         is_alive: true,
                         health: 100,
                         kills: 0
@@ -2442,9 +3053,10 @@
                 currentRoom = roomResult.data;
                 roomCode = code;
                 isHost = false;
-                
+
                 setRoomCodeDisplay(code);
                 document.getElementById('hostControls').style.display = 'none';
+                renderAllSettings();
                 
                 subscribeToRoom(roomResult.data.id);
                 await loadPlayers(roomResult.data.id);
@@ -2484,22 +3096,35 @@
                     table: 'recoil_rooms',
                     filter: 'id=eq.' + roomId
                 }, async (payload) => {
-                    if (payload.new.status === 'playing' && currentScreen === 'lobby') {
-                        await loadPlayersForGame(roomId);
-                        switchScreen('game');
-                        initGame();
+                    const room = payload.new;
+                    if (!currentRoom || !room) return;
+                    if (room.host_id && room.host_id !== currentRoom.host_id) applyHostChange(room.host_id);
+                    currentRoom.status = room.status;
+
+                    // New round: pull in everyone who is in the lobby or still looking at the results
+                    if (room.status === 'playing' && (currentScreen === 'lobby' || currentScreen === 'winner')) {
+                        await startRoundFromRoom();
                     }
                 })
                 .subscribe();
 
+            presenceReady = false;
+            presenceSubscribed = false;
             gameChannel = supabaseClient
-                .channel('game-' + roomId)
+                .channel('game-' + roomId, { config: { presence: { key: myPlayerId } } })
+                .on('presence', { event: 'sync' }, onPresenceSync)
+                .on('broadcast', { event: 'match_settings' }, (msg) => { if (!isHost) applyLobbySettings(msg.payload.settings); })
                 .on('broadcast', { event: 'shoot' }, handleRemoteShoot)
                 .on('broadcast', { event: 'move' }, handleRemoteMove)
                 .on('broadcast', { event: 'hit' }, handleRemoteHit)
                 .on('broadcast', { event: 'player_death' }, handleRemotePlayerDeath)
                 .on('broadcast', { event: 'game_end' }, handleGameEnd)
-                .subscribe();
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        presenceSubscribed = true;
+                        trackPresence();
+                    }
+                });
         }
 
         // ===== PLAYER DATA =====
@@ -2511,7 +3136,9 @@
                 .order('joined_at');
 
             if (!result.error && result.data) {
+                lobbyPlayers = result.data;
                 updatePlayersDisplay(result.data);
+                onPresenceSync(); // start watching anyone new
             }
         }
 
@@ -2524,15 +3151,16 @@
 
             if (!result.error && result.data) {
                 players.clear();
-                
+                lobbyPlayers = result.data;
+                                
                 result.data.forEach((playerData, idx) => {
                     players.set(playerData.id, {
                         id: playerData.id,
                         player_name: playerData.player_name,
                         color: playerData.color,
-                        health: playerData.health,
-                        isAlive: playerData.is_alive,
-                        kills: playerData.kills || 0,
+                        health: 100,
+                        isAlive: true,
+                        kills: 0,
                         isBot: false,
                         x: 0,
                         y: 0,
@@ -2562,6 +3190,11 @@
                 .eq('room_id', roomId);
 
             if (!result.error && result.data) {
+                const stillInRoom = new Set(result.data.map(p => p.id));
+                players.forEach(p => {
+                    if (!p.isBot && p.isAlive && !stillInRoom.has(p.id)) killPlayer(p.id, null, 'left');
+                });
+
                 // Fallback only: realtime broadcasts are the source of truth during play.
                 // DB rows lag behind, so never let them raise health, revive anyone, or touch our own player.
                 result.data.forEach(playerData => {
@@ -2647,6 +3280,11 @@
                 if (result.data.length < 2) {
                     showToast('Need at least 2 players!');
                     return;
+                }
+
+                // Make sure everyone starts with exactly the rules the host sees
+                if (gameChannel) {
+                    gameChannel.send({ type: 'broadcast', event: 'match_settings', payload: { settings: lobbySettings } });
                 }
 
                 await supabaseClient
@@ -2751,16 +3389,40 @@
             lastFrameTime = 0;
             physicsAccumulator = 0;
             gameStartTime = Date.now();
+            gameEnded = false;
+            bullets = [];
+            particles = [];
+            activeSettings = sanitizeSettings(isOfflineMode ? preferredSettings : lobbySettings);
+            showRulesInSplash(activeSettings);
 
-            window.addEventListener('keydown', handleKeyDown);
-            canvas.addEventListener('click', handleCanvasClick);
-            canvas.addEventListener('touchstart', handleTouchStart);
+            // Add input listeners once - later rounds reuse them
+            if (!inputListenersAdded) {
+                inputListenersAdded = true;
+                window.addEventListener('keydown', handleKeyDown);
+                canvas.addEventListener('click', handleCanvasClick);
+                canvas.addEventListener('touchstart', handleTouchStart);
+            }
 
             gameLoop();
         }
 
+        let inputListenersAdded = false;
+
+        function showRulesInSplash(settings) {
+            const box = document.getElementById('fightRules');
+            if (!box) return;
+            box.innerHTML = '';
+            describeRules(settings).forEach(text => {
+                const chip = document.createElement('span');
+                chip.className = 'fight-rule';
+                chip.textContent = text;
+                box.appendChild(chip);
+            });
+        }
+
         // ===== INPUT HANDLERS =====
         function handleKeyDown(e) {
+            if (currentScreen !== 'game') return;
             if (e.code === 'Space' && isWindowFocused) {
                 e.preventDefault();
                 autoEnterFullscreen();
@@ -2816,13 +3478,18 @@
             }
         }
 
+        function getBulletSpeed() {
+            return BULLET_SPEEDS[activeSettings.bulletSpeed] || PHYSICS.BULLET_SPEED;
+        }
+
         function createBullet(ownerId, color, x, y, rotation) {
             bullets.push({
                 x: x + Math.cos(rotation) * 35,
                 y: y + Math.sin(rotation) * 35,
-                vx: Math.cos(rotation) * PHYSICS.BULLET_SPEED,
-                vy: Math.sin(rotation) * PHYSICS.BULLET_SPEED,
+                vx: Math.cos(rotation) * getBulletSpeed(),
+                vy: Math.sin(rotation) * getBulletSpeed(),
                 ownerId: ownerId,
+                age: 0,
                 color: color,
                 trail: [],
                 life: 500
@@ -3019,7 +3686,7 @@
             }
         }
 
-        function killPlayer(playerId, shooterId) {
+        function killPlayer(playerId, shooterId, reason) {
             const player = players.get(playerId);
             if (!player || !player.isAlive) return false;
 
@@ -3027,8 +3694,9 @@
             player.health = 0;
 
             const shooter = players.get(shooterId);
-            if (shooter) shooter.kills = (shooter.kills || 0) + 1;
-            addKillFeed(shooter, player);
+            const selfKill = shooter && shooter.id === player.id;
+            if (shooter && !selfKill) shooter.kills = (shooter.kills || 0) + 1; // no credit for shooting yourself
+            addKillFeed(shooter, player, reason);
 
             // Death explosion
             const drawX = player.x + (player.offsetX || 0);
@@ -3159,10 +3827,13 @@
                 bullet.life -= 1;
                 bullet.vx *= PHYSICS.BULLET_FRICTION;
                 bullet.vy *= PHYSICS.BULLET_FRICTION;
+                bullet.age = (bullet.age || 0) + 1;
 
                 // Collision detection
                 for (const player of players.values()) {
-                    if (!player.isAlive || player.id === bullet.ownerId) continue;
+                    if (!player.isAlive) continue;
+                    // Own bullets only count with self-damage on, and never in the first moments after firing
+                    if (player.id === bullet.ownerId && (!activeSettings.selfDamage || bullet.age < 15)) continue;
 
                     const dx = bullet.x - player.x;
                     const dy = bullet.y - player.y;
@@ -3414,26 +4085,29 @@
                 showSpectatorMode();
             }
             
-            // Check if game is won (only host broadcasts game end)
-            if (alivePlayers.length === 1 && (isHost || isOfflineMode) && !gameEnded) {
-                const winner = alivePlayers[0];
+            // Last one floating wins; nobody left (e.g. two players trading final shots) is a draw.
+            // Only the host decides, so every screen agrees.
+            if (alivePlayers.length <= 1 && players.size > 0 && (isHost || isOfflineMode) && !gameEnded) {
+                const winner = alivePlayers[0] || null;
                 gameEnded = true;
-                
+
                 // Broadcast game end to all players
                 if (!isOfflineMode && gameChannel) {
                     gameChannel.send({
                         type: 'broadcast',
                         event: 'game_end',
                         payload: {
-                            winnerId: winner.id,
-                            winnerName: winner.player_name,
-                            winnerKills: winner.kills || 0,
+                            winnerId: winner ? winner.id : null,
+                            winnerName: winner ? winner.player_name : null,
+                            winnerKills: winner ? (winner.kills || 0) : 0,
                             timestamp: Date.now()
                         }
                     });
                 }
-                
-                // Show victory screen for host
+
+                // Room goes straight back to the lobby so the next round is one click away
+                resetRoomForNextRound();
+
                 showVictoryScreen(winner);
             }
         }
@@ -3449,21 +4123,27 @@
                     cancelAnimationFrame(animationId);
                 }
                 
-                const iWon = winner.id === myPlayerId;
+                const isDraw = !winner || !winner.id;
+                const iWon = !isDraw && winner.id === myPlayerId;
                 const me = players.get(myPlayerId);
                 const seconds = Math.max(0, Math.round((Date.now() - gameStartTime) / 1000));
 
                 document.getElementById('winnerShell').classList.toggle('lost', !iWon);
-                document.getElementById('winnerTrophy').textContent = iWon ? '🏆' : '💀';
-                setTitleLetters(document.getElementById('winnerTitle'), iWon ? 'VICTORY' : 'DEFEAT');
-                document.getElementById('winnerName').textContent = iWon
-                    ? 'You are the last pilot floating!'
-                    : (winner.player_name || 'Someone') + ' takes the crown';
-                document.getElementById('winnerKills').textContent = winner.kills || 0;
+                document.getElementById('winnerTrophy').textContent = isDraw ? '🤝' : iWon ? '🏆' : '💀';
+                setTitleLetters(document.getElementById('winnerTitle'), isDraw ? 'DRAW' : iWon ? 'VICTORY' : 'DEFEAT');
+                document.getElementById('winnerName').textContent = isDraw
+                    ? 'Nobody survived that one'
+                    : iWon
+                        ? 'You are the last pilot floating!'
+                        : (winner.player_name || 'Someone') + ' takes the crown';
+                document.getElementById('winnerKills').textContent = isDraw ? 0 : (winner.kills || 0);
                 document.getElementById('yourKills').textContent = me ? (me.kills || 0) : 0;
                 document.getElementById('matchTime').textContent = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+                document.getElementById('winnerPrimaryLabel').textContent = isOfflineMode ? 'Play Again' : 'Back to Lobby';
 
-                clearSession();
+                // Online we stay in the room (session kept so a refresh lands back in the lobby)
+                if (isOfflineMode) clearSession();
+                else saveSession();
                 switchScreen('winner');
                 if (iWon) confetti.start();
             }, 2000);
@@ -3475,12 +4155,12 @@
             const { winnerId, winnerName, winnerKills } = payload.payload;
             gameEnded = true;
             
-            const winner = {
+            const winner = winnerId ? {
                 id: winnerId,
                 player_name: winnerName,
                 kills: winnerKills
-            };
-            
+            } : null;
+
             showVictoryScreen(winner);
         }
 
@@ -3516,12 +4196,12 @@
         }
 
         function handleRemotePlayerDeath(payload) {
-            const { playerId, shooterId } = payload.payload;
-            
+            const { playerId, shooterId, reason } = payload.payload;
+
             if (playerId === myPlayerId) return;
 
             // killPlayer ignores duplicates, so a kill is only ever counted once
-            if (!killPlayer(playerId, shooterId)) return;
+            if (!killPlayer(playerId, shooterId, reason)) return;
 
             // Check for game end after remote death
             setTimeout(() => checkGameEnd(), 100);
@@ -3620,7 +4300,7 @@
             }
         }
 
-        function addKillFeed(shooter, victim) {
+        function addKillFeed(shooter, victim, reason) {
             const feed = document.getElementById('killFeed');
             if (!feed || !victim) return;
 
@@ -3639,10 +4319,26 @@
             };
             const icon = document.createElement('span');
             icon.className = 'kf-icon';
-            icon.textContent = '💥';
+            const note = (text) => {
+                const span = document.createElement('span');
+                span.className = 'kf-icon';
+                span.textContent = text;
+                return span;
+            };
 
-            if (shooter) entry.append(nameEl(shooter), icon, nameEl(victim));
-            else entry.append(icon, nameEl(victim));
+            if (reason === 'left') {
+                icon.textContent = '🚪';
+                entry.append(icon, nameEl(victim), note('left'));
+            } else if (shooter && shooter.id === victim.id) {
+                icon.textContent = '🔁';
+                entry.append(nameEl(victim), icon, note('own bullet'));
+            } else if (shooter) {
+                icon.textContent = '💥';
+                entry.append(nameEl(shooter), icon, nameEl(victim));
+            } else {
+                icon.textContent = '💥';
+                entry.append(icon, nameEl(victim));
+            }
 
             feed.prepend(entry);
             while (feed.children.length > 4) feed.lastElementChild.remove();
@@ -4021,6 +4717,7 @@
         }
 
         setupMenuInputs();
+        renderAllSettings();
         menuBackground.start();
 
         document.addEventListener('DOMContentLoaded', () => {
