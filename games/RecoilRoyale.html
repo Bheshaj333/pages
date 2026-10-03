@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recoil Royale - Multiplayer Shooter</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
     <style>
         * {
             margin: 0;
@@ -568,7 +568,7 @@
             BULLET_FRICTION: 0.998       // Bullet air resistance (restored)
         };
         
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // ===== GAME STATE =====
         let currentScreen = 'menu';
@@ -646,7 +646,7 @@
                     return false;
                 }
 
-                const { data: room } = await supabase
+                const { data: room } = await supabaseClient
                     .from('recoil_rooms')
                     .select('*')
                     .eq('id', session.roomId)
@@ -657,7 +657,7 @@
                     return false;
                 }
 
-                const { data: player } = await supabase
+                const { data: player } = await supabaseClient
                     .from('recoil_players')
                     .select('*')
                     .eq('id', session.myPlayerId)
@@ -784,15 +784,15 @@
             document.getElementById('confirmLeaveModal').classList.remove('active');
             
             if (currentRoom && myPlayerId) {
-                await supabase.from('recoil_players').delete().eq('id', myPlayerId);
+                await supabaseClient.from('recoil_players').delete().eq('id', myPlayerId);
                 if (isHost) {
-                    await supabase.from('recoil_rooms').delete().eq('id', currentRoom.id);
+                    await supabaseClient.from('recoil_rooms').delete().eq('id', currentRoom.id);
                 }
             }
             
-            if (roomSubscription) supabase.removeChannel(roomSubscription);
-            if (playerSubscription) supabase.removeChannel(playerSubscription);
-            if (gameChannel) supabase.removeChannel(gameChannel);
+            if (roomSubscription) supabaseClient.removeChannel(roomSubscription);
+            if (playerSubscription) supabaseClient.removeChannel(playerSubscription);
+            if (gameChannel) supabaseClient.removeChannel(gameChannel);
             
             clearSession();
             backToMenu();
@@ -830,7 +830,7 @@
                 const code = Math.random().toString(36).substring(2, 8).toUpperCase();
                 myPlayerId = crypto.randomUUID();
                 
-                const roomResult = await supabase
+                const roomResult = await supabaseClient
                     .from('recoil_rooms')
                     .insert({
                         room_code: code,
@@ -843,7 +843,7 @@
 
                 if (roomResult.error) throw roomResult.error;
 
-                const playerResult = await supabase
+                const playerResult = await supabaseClient
                     .from('recoil_players')
                     .insert({
                         id: myPlayerId,
@@ -888,7 +888,7 @@
             playerName = name;
 
             try {
-                const roomResult = await supabase
+                const roomResult = await supabaseClient
                     .from('recoil_rooms')
                     .select('*')
                     .eq('room_code', code)
@@ -901,7 +901,7 @@
                     return;
                 }
 
-                const countResult = await supabase
+                const countResult = await supabaseClient
                     .from('recoil_players')
                     .select('*', { count: 'exact', head: true })
                     .eq('room_id', roomResult.data.id);
@@ -913,7 +913,7 @@
 
                 myPlayerId = crypto.randomUUID();
 
-                const playerResult = await supabase
+                const playerResult = await supabaseClient
                     .from('recoil_players')
                     .insert({
                         id: myPlayerId,
@@ -948,7 +948,7 @@
 
         // ===== REALTIME SUBSCRIPTIONS =====
         function subscribeToRoom(roomId) {
-            playerSubscription = supabase
+            playerSubscription = supabaseClient
                 .channel('players-' + roomId)
                 .on('postgres_changes', {
                     event: '*',
@@ -964,7 +964,7 @@
                 })
                 .subscribe();
 
-            roomSubscription = supabase
+            roomSubscription = supabaseClient
                 .channel('room-' + roomId)
                 .on('postgres_changes', {
                     event: 'UPDATE',
@@ -980,7 +980,7 @@
                 })
                 .subscribe();
 
-            gameChannel = supabase
+            gameChannel = supabaseClient
                 .channel('game-' + roomId)
                 .on('broadcast', { event: 'shoot' }, handleRemoteShoot)
                 .on('broadcast', { event: 'move' }, handleRemoteMove)
@@ -990,7 +990,7 @@
 
         // ===== PLAYER DATA =====
         async function loadPlayers(roomId) {
-            const result = await supabase
+            const result = await supabaseClient
                 .from('recoil_players')
                 .select('*')
                 .eq('room_id', roomId)
@@ -1002,7 +1002,7 @@
         }
 
         async function loadPlayersForGame(roomId) {
-            const result = await supabase
+            const result = await supabaseClient
                 .from('recoil_players')
                 .select('*')
                 .eq('room_id', roomId)
@@ -1042,7 +1042,7 @@
         }
 
         async function syncGameState(roomId) {
-            const result = await supabase
+            const result = await supabaseClient
                 .from('recoil_players')
                 .select('*')
                 .eq('room_id', roomId);
@@ -1076,7 +1076,7 @@
             if (!isHost) return;
 
             try {
-                const result = await supabase
+                const result = await supabaseClient
                     .from('recoil_players')
                     .select('*')
                     .eq('room_id', currentRoom.id);
@@ -1086,7 +1086,7 @@
                     return;
                 }
 
-                await supabase
+                await supabaseClient
                     .from('recoil_rooms')
                     .update({ status: 'playing' })
                     .eq('id', currentRoom.id);
@@ -1862,7 +1862,7 @@
             
             // Process all pending updates in batch
             const updates = Array.from(pendingDbUpdates.entries()).map(([playerId, data]) => {
-                return supabase
+                return supabaseClient
                     .from('recoil_players')
                     .update(data)
                     .eq('id', playerId);
