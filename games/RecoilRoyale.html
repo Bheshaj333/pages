@@ -224,6 +224,38 @@
             display: flex;
         }
 
+        .fullscreen-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 35px;
+            height: 35px;
+            padding: 0;
+            margin: 0;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            z-index: 1000;
+            font-size: 18px;
+            line-height: 1;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: none;
+        }
+
+        .fullscreen-btn:hover {
+            background: rgba(0, 0, 0, 0.85);
+            transform: scale(1.1);
+            box-shadow: none;
+        }
+
+        .fullscreen-btn.active {
+            display: flex;
+        }
+
         .game-stats {
             position: fixed;
             top: 15px;
@@ -505,6 +537,51 @@
                 padding: 6px 12px;
             }
         }
+
+        /* Phones in landscape: compact HUD so it doesn't cover the arena */
+        @media (max-height: 500px) {
+            .game-stats {
+                top: 6px;
+                font-size: 13px;
+                padding: 5px 12px;
+                border-width: 1px;
+                background: rgba(0, 0, 0, 0.5);
+            }
+
+            .eliminated-overlay {
+                top: 40px;
+            }
+
+            .eliminated-box {
+                font-size: 13px;
+                padding: 6px 14px;
+            }
+        }
+
+        /* Touch screens: bigger, thumb-friendly buttons */
+        @media (pointer: coarse) {
+            .leave-btn,
+            .fullscreen-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 20px;
+                top: max(8px, env(safe-area-inset-top));
+            }
+
+            .leave-btn {
+                left: max(8px, env(safe-area-inset-left));
+            }
+
+            .fullscreen-btn {
+                right: max(8px, env(safe-area-inset-right));
+            }
+
+            /* no hover effects stuck after a tap */
+            .leave-btn:hover,
+            .fullscreen-btn:hover {
+                transform: none;
+            }
+        }
     </style>
 </head>
 <body>
@@ -565,9 +642,10 @@
             <div class="rotate-overlay" id="rotateOverlay">
                 <div class="rotate-icon">📱</div>
                 <p>Rotate your phone for full screen</p>
-                <button onclick="enterMobileFullscreen()">Go Fullscreen</button>
+                <button onclick="enterFullscreen()">Go Fullscreen</button>
             </div>
             <button class="leave-btn" id="leaveBtn" onclick="showLeaveConfirmation()">✕</button>
+            <button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen(); this.blur()" title="Fullscreen">⛶</button>
             <div class="game-stats" id="gameStats">
                 <span id="aliveCount">Players: 0</span> | 
                 <span id="killCount">Kills: 0</span>
@@ -778,29 +856,35 @@
             }
         });
 
-        // ===== MOBILE FULLSCREEN & ORIENTATION =====
-        // The arena is always 1920x1080 (16:9) so every device plays the same game.
-        // On phones that only fills the screen in landscape, so we nudge players there.
+        // ===== FULLSCREEN & ORIENTATION =====
+        // The arena is always 1920x1080 (16:9) so every device plays the exact same game.
+        // The canvas covers the whole screen; extra space around the arena is just scenery.
         const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+        let autoFullscreenDone = false; // only auto-enter once per game, so Esc is respected
 
-        function isMobileFullscreen() {
+        function canUseFullscreen() {
+            const root = document.documentElement;
+            return !!(root.requestFullscreen || root.webkitRequestFullscreen);
+        }
+
+        function isFullscreen() {
             return !!(document.fullscreenElement || document.webkitFullscreenElement);
         }
 
-        // Must be called from a tap (browsers only allow fullscreen from a user gesture)
-        function enterMobileFullscreen() {
-            if (!isTouchDevice || currentScreen !== 'game') return;
+        // Must be called from a click/tap/key press (browsers only allow fullscreen from a user gesture)
+        function enterFullscreen() {
+            if (currentScreen !== 'game') return;
 
             const root = document.documentElement;
             const request = root.requestFullscreen || root.webkitRequestFullscreen;
             const afterFullscreen = () => {
-                // Android Chrome can lock to landscape once fullscreen; iPhone ignores this
-                if (screen.orientation && screen.orientation.lock) {
+                // Android Chrome can lock phones to landscape once fullscreen; desktop/iPhone ignore this
+                if (isTouchDevice && screen.orientation && screen.orientation.lock) {
                     screen.orientation.lock('landscape').catch(() => {});
                 }
             };
 
-            if (!isMobileFullscreen() && request) {
+            if (!isFullscreen() && request) {
                 try {
                     const result = request.call(root, { navigationUI: 'hide' });
                     if (result && result.then) result.then(afterFullscreen).catch(() => {});
@@ -810,11 +894,18 @@
             }
         }
 
-        function exitMobileFullscreen() {
+        // First interaction of each game goes fullscreen automatically
+        function autoEnterFullscreen() {
+            if (autoFullscreenDone || isFullscreen()) return;
+            autoFullscreenDone = true;
+            enterFullscreen();
+        }
+
+        function exitFullscreen() {
             if (screen.orientation && screen.orientation.unlock) {
                 try { screen.orientation.unlock(); } catch (e) {}
             }
-            if (isMobileFullscreen()) {
+            if (isFullscreen()) {
                 const exit = document.exitFullscreen || document.webkitExitFullscreen;
                 if (exit) {
                     try {
@@ -825,21 +916,37 @@
             }
         }
 
-        function updateRotateOverlay() {
-            const overlay = document.getElementById('rotateOverlay');
-            if (!overlay) return;
-            const isPortrait = window.innerHeight > window.innerWidth;
-            overlay.classList.toggle('active', isTouchDevice && currentScreen === 'game' && isPortrait);
+        // Small haptic kicks on phones that support it (Android; iPhone silently ignores)
+        function vibrate(pattern) {
+            if (!isTouchDevice || !navigator.vibrate) return;
+            try { navigator.vibrate(pattern); } catch (e) {}
+        }
 
-            // iPhone Safari has no fullscreen API for pages - only show the button where it works
-            const root = document.documentElement;
-            const canFullscreen = !!(root.requestFullscreen || root.webkitRequestFullscreen);
-            overlay.querySelector('button').style.display = canFullscreen ? '' : 'none';
+        function toggleFullscreen() {
+            if (isFullscreen()) exitFullscreen();
+            else enterFullscreen();
+        }
+
+        function updateFullscreenUi() {
+            const overlay = document.getElementById('rotateOverlay');
+            if (overlay) {
+                const isPortrait = window.innerHeight > window.innerWidth;
+                overlay.classList.toggle('active', isTouchDevice && currentScreen === 'game' && isPortrait);
+                // iPhone Safari has no fullscreen API for pages - only show the button where it works
+                overlay.querySelector('button').style.display = canUseFullscreen() ? '' : 'none';
+            }
+
+            const fsBtn = document.getElementById('fullscreenBtn');
+            if (fsBtn) {
+                fsBtn.classList.toggle('active', currentScreen === 'game' && canUseFullscreen());
+                fsBtn.textContent = isFullscreen() ? '🗗' : '⛶';
+                fsBtn.title = isFullscreen() ? 'Exit fullscreen' : 'Fullscreen';
+            }
         }
 
         function handleViewportChange() {
             if (canvas) setupCanvasScaling();
-            updateRotateOverlay();
+            updateFullscreenUi();
         }
 
         window.addEventListener('resize', handleViewportChange);
@@ -847,24 +954,46 @@
         document.addEventListener('fullscreenchange', handleViewportChange);
         document.addEventListener('webkitfullscreenchange', handleViewportChange);
 
-        // ===== CANVAS SCALING (MAINTAINS FIXED GAME WORLD) =====
+        // ===== CANVAS SCALING (FULL SCREEN, FIXED GAME WORLD) =====
+        // The canvas fills the window. The 1920x1080 arena is scaled uniformly to the largest size
+        // that fits and centered; anything outside it is background. Game logic never sees screen
+        // size, so physics and hit detection are identical on every device.
+        const MAX_RENDER_SCALE = 1; // never render the arena at more than 1920x1080 worth of pixels
+        let viewTransform = { scale: 1, offsetX: 0, offsetY: 0 };
+        let uiScale = 1; // how much to enlarge names/health bars so they stay readable on small screens
+
         function setupCanvasScaling() {
-            const container = window;
-            const containerWidth = container.innerWidth;
-            const containerHeight = container.innerHeight;
-            
-            // Calculate scale to fit screen while maintaining aspect ratio
-            const scaleX = containerWidth / GAME_WIDTH;
-            const scaleY = containerHeight / GAME_HEIGHT;
-            scale = Math.min(scaleX, scaleY);
-            
-            // Set canvas display size (scaled)
-            canvas.style.width = (GAME_WIDTH * scale) + 'px';
-            canvas.style.height = (GAME_HEIGHT * scale) + 'px';
-            
-            // Set canvas internal size (logical game resolution) - only once, resizing clears the canvas
-            if (canvas.width !== GAME_WIDTH) canvas.width = GAME_WIDTH;
-            if (canvas.height !== GAME_HEIGHT) canvas.height = GAME_HEIGHT;
+            const cssWidth = window.innerWidth;
+            const cssHeight = window.innerHeight;
+            const dpr = window.devicePixelRatio || 1;
+
+            // Arena size on screen in CSS pixels
+            scale = Math.min(cssWidth / GAME_WIDTH, cssHeight / GAME_HEIGHT);
+
+            // Desktop-sized screens keep the original label size; phones get up to 2.2x bigger labels
+            uiScale = Math.min(2.2, Math.max(1, 0.75 / scale));
+
+            // Canvas pixels per arena unit: sharp on high-DPI phones, capped to keep big monitors fast
+            const renderScale = Math.min(scale * dpr, MAX_RENDER_SCALE);
+            const pixelsPerCssPx = renderScale / scale;
+
+            canvas.style.width = cssWidth + 'px';
+            canvas.style.height = cssHeight + 'px';
+
+            // Resizing clears the canvas, so only do it when the size actually changes
+            const width = Math.round(cssWidth * pixelsPerCssPx);
+            const height = Math.round(cssHeight * pixelsPerCssPx);
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+                backgroundCanvas = null; // redraw scenery for the new size
+            }
+
+            viewTransform = {
+                scale: renderScale,
+                offsetX: (width - GAME_WIDTH * renderScale) / 2,
+                offsetY: (height - GAME_HEIGHT * renderScale) / 2
+            };
         }
 
         // ===== UI FUNCTIONS =====
@@ -884,11 +1013,12 @@
                 if (screenName === 'menu' || screenName === 'winner') {
                     isInGame = false;
                 }
-                // Menus are laid out for portrait, so give the phone back its normal orientation
-                exitMobileFullscreen();
+                // Menus aren't built for fullscreen/landscape, so give the device back its normal view
+                exitFullscreen();
+                autoFullscreenDone = false;
             }
 
-            updateRotateOverlay();
+            updateFullscreenUi();
         }
 
         function switchTab(tabName) {
@@ -1278,7 +1408,7 @@
             }
 
             switchScreen('game');
-            enterMobileFullscreen(); // still inside the "Start" tap, so fullscreen is allowed
+            autoEnterFullscreen(); // still inside the "Start" tap, so fullscreen is allowed
             initGame();
         }
 
@@ -1289,7 +1419,7 @@
             
             // Setup fixed game world with scaling
             setupCanvasScaling();
-            updateRotateOverlay();
+            updateFullscreenUi();
 
             // Position players in a circle using FIXED game coordinates
             let playerArray = Array.from(players.values());
@@ -1330,11 +1460,13 @@
         function handleKeyDown(e) {
             if (e.code === 'Space' && isWindowFocused) {
                 e.preventDefault();
+                autoEnterFullscreen();
                 shoot();
             }
         }
 
         function handleCanvasClick(e) {
+            autoEnterFullscreen();
             if (isWindowFocused) {
                 shoot();
             }
@@ -1342,8 +1474,8 @@
 
         function handleTouchStart(e) {
             e.preventDefault();
-            // First tap in a game also takes the phone fullscreen (needs a user gesture)
-            if (!isMobileFullscreen()) enterMobileFullscreen();
+            // First tap in a game also goes fullscreen (needs a user gesture)
+            autoEnterFullscreen();
             if (isWindowFocused) {
                 shoot();
             }
@@ -1365,6 +1497,7 @@
             player.vx -= Math.cos(player.rotation) * PHYSICS.RECOIL_FORCE;
             player.vy -= Math.sin(player.rotation) * PHYSICS.RECOIL_FORCE;
             player.rotationSpeed += (Math.random() - 0.5) * PHYSICS.ROTATION_RECOIL;
+            vibrate(15);
 
             if (!isOfflineMode && gameChannel) {
                 // Send the full post-recoil state so other screens fire the bullet from
@@ -1544,6 +1677,7 @@
         // decides a hit, then tells everyone. This keeps health and kills identical everywhere.
         function applyDamage(player, shooterId) {
             player.health -= 34;
+            if (player.id === myPlayerId) vibrate(player.health <= 0 ? [90, 60, 160] : 60);
 
             if (player.health <= 0) {
                 killPlayer(player.id, shooterId);
@@ -1788,15 +1922,39 @@
             });
         }
 
-        // Background never changes, so draw it once and reuse it (big saving on phones)
+        // Background never changes, so draw it once per screen size and reuse it (big saving on phones).
+        // It covers the whole canvas: space scenery everywhere, the arena in the middle with a glowing edge.
         function getBackground() {
             if (backgroundCanvas) return backgroundCanvas;
 
             backgroundCanvas = document.createElement('canvas');
-            backgroundCanvas.width = GAME_WIDTH;
-            backgroundCanvas.height = GAME_HEIGHT;
+            backgroundCanvas.width = canvas.width;
+            backgroundCanvas.height = canvas.height;
             const bg = backgroundCanvas.getContext('2d');
+            const { scale: s, offsetX, offsetY } = viewTransform;
 
+            // Scenery outside the arena (drawn in arena units so it scales like the game)
+            bg.fillStyle = '#03030a';
+            bg.fillRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
+            bg.setTransform(s, 0, 0, s, offsetX, offsetY);
+
+            const cell = 110;
+            const minX = Math.floor(-offsetX / s / cell) - 1, maxX = Math.ceil((backgroundCanvas.width - offsetX) / s / cell) + 1;
+            const minY = Math.floor(-offsetY / s / cell) - 1, maxY = Math.ceil((backgroundCanvas.height - offsetY) / s / cell) + 1;
+            for (let cx = minX; cx <= maxX; cx++) {
+                for (let cy = minY; cy <= maxY; cy++) {
+                    const h = Math.abs(Math.sin(cx * 12.9898 + cy * 78.233) * 43758.5453) % 1;
+                    const x = cx * cell + h * cell;
+                    const y = cy * cell + ((h * 7.31) % 1) * cell;
+                    if (x > 0 && x < GAME_WIDTH && y > 0 && y < GAME_HEIGHT) continue; // arena has its own stars
+                    bg.fillStyle = 'rgba(255, 255, 255, ' + (0.15 + ((h * 13.7) % 1) * 0.35) + ')';
+                    bg.beginPath();
+                    bg.arc(x, y, 0.5 + ((h * 3.3) % 1) * 1.2, 0, Math.PI * 2);
+                    bg.fill();
+                }
+            }
+
+            // Arena
             const gradient = bg.createRadialGradient(
                 GAME_WIDTH / 2, GAME_HEIGHT / 2, 0,
                 GAME_WIDTH / 2, GAME_HEIGHT / 2, Math.max(GAME_WIDTH, GAME_HEIGHT) / 1.5
@@ -1816,11 +1974,23 @@
                 bg.fill();
             }
 
+            // Glowing arena edge so players can see where the walls are
+            bg.strokeStyle = 'rgba(118, 140, 255, 0.55)';
+            bg.lineWidth = 4;
+            bg.shadowColor = 'rgba(118, 140, 255, 0.9)';
+            bg.shadowBlur = 24 * s;
+            bg.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            bg.shadowBlur = 0;
+
             return backgroundCanvas;
         }
 
         function renderGame() {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.drawImage(getBackground(), 0, 0);
+
+            // Everything else is drawn in arena coordinates, scaled and centered on screen
+            ctx.setTransform(viewTransform.scale, 0, 0, viewTransform.scale, viewTransform.offsetX, viewTransform.offsetY);
 
             players.forEach(player => {
                 if (!player.isAlive) return;
@@ -1857,24 +2027,29 @@
                 ctx.fillStyle = glowGradient;
                 ctx.fillRect(x - 50, y - 50, 100, 100);
 
+                // Labels scale up on small screens so they stay readable (purely visual)
+                const u = uiScale;
+
                 // Draw health bar
-                const healthBarWidth = 50;
-                const healthBarHeight = 5;
+                const healthBarWidth = 50 * u;
+                const healthBarHeight = 5 * u;
+                const healthBarY = y - 35 - healthBarHeight;
                 const healthPercent = Math.max(player.health, 0) / 100;
 
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(x - healthBarWidth / 2, y - 40, healthBarWidth, healthBarHeight);
+                ctx.fillRect(x - healthBarWidth / 2, healthBarY, healthBarWidth, healthBarHeight);
 
                 ctx.fillStyle = healthPercent > 0.5 ? '#4ade80' : healthPercent > 0.25 ? '#fbbf24' : '#ef4444';
-                ctx.fillRect(x - healthBarWidth / 2, y - 40, healthBarWidth * healthPercent, healthBarHeight);
+                ctx.fillRect(x - healthBarWidth / 2, healthBarY, healthBarWidth * healthPercent, healthBarHeight);
 
-                // Draw name
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 14px Arial';
+                // Draw name (yours in gold so you can spot yourself instantly)
+                const isMe = player.id === myPlayerId;
+                ctx.fillStyle = isMe ? '#ffd700' : '#fff';
+                ctx.font = 'bold ' + Math.round(14 * u) + 'px Arial';
                 ctx.textAlign = 'center';
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-                ctx.shadowBlur = 4;
-                ctx.fillText(player.player_name, x, y - 48);
+                ctx.shadowBlur = 4 * u;
+                ctx.fillText(isMe ? '▼ ' + player.player_name : player.player_name, x, healthBarY - 4 * u);
                 ctx.shadowBlur = 0;
             });
 
